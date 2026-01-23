@@ -1,7 +1,27 @@
-import { Link } from "wouter";
+import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { startGame } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  const startGameMutation = useMutation({
+    mutationFn: startGame,
+    onSuccess: () => {
+      setLocation("/game");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to start game. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   return (
     <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center relative overflow-hidden">
       {/* Background with Overlay */}
@@ -21,19 +41,30 @@ export default function Home() {
         </div>
 
         <div className="flex flex-col gap-4 w-full max-w-xs">
-          <Link href="/game">
-            <Button className="w-full h-16 text-xl font-display uppercase tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-all duration-300 clip-corner shadow-[0_0_20px_rgba(0,255,255,0.4)]">
-              Initialize Run
-            </Button>
-          </Link>
+          <Button 
+            className="w-full h-16 text-xl font-display uppercase tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 transition-all duration-300 clip-corner shadow-[0_0_20px_rgba(0,255,255,0.4)]"
+            onClick={() => startGameMutation.mutate()}
+            disabled={startGameMutation.isPending}
+            data-testid="button-start-game"
+          >
+            {startGameMutation.isPending ? "INITIALIZING..." : "Initialize Run"}
+          </Button>
           
           <div className="flex gap-4">
-             <Button variant="outline" className="flex-1 border-primary/30 text-primary hover:bg-primary/10 font-mono text-xs uppercase">
-               Load Data
-             </Button>
-             <Button variant="outline" className="flex-1 border-primary/30 text-primary hover:bg-primary/10 font-mono text-xs uppercase">
-               Settings
-             </Button>
+            <Button 
+              variant="outline" 
+              className="flex-1 border-primary/30 text-primary hover:bg-primary/10 font-mono text-xs uppercase"
+              disabled
+            >
+              Load Data
+            </Button>
+            <Button 
+              variant="outline" 
+              className="flex-1 border-primary/30 text-primary hover:bg-primary/10 font-mono text-xs uppercase"
+              disabled
+            >
+              Settings
+            </Button>
           </div>
         </div>
 
