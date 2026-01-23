@@ -40,6 +40,7 @@
   --animate-scanline: scanline 8s linear infinite;
   --animate-flicker: flicker 2s infinite;
   --animate-glitch: glitch 1s linear infinite;
+  --animate-spin-slow: spin 20s linear infinite;
   
   @keyframes scanline {
     0% { transform: translateY(-100%); }
@@ -53,6 +54,11 @@
     20%, 21.999%, 63%, 63.999%, 65%, 69.999% {
       opacity: 0.4;
     }
+  }
+  
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 }
 
@@ -141,5 +147,9 @@
     clip-path: polygon(
       10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px
     );
+  }
+  
+  .animate-spin-slow {
+    animation: spin 20s linear infinite;
   }
 }

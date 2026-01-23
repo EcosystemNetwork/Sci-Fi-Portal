@@ -1,7 +1,16 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertGameSessionSchema, insertEncounterSchema, insertEventLogSchema } from "@shared/schema";
+import { z } from "zod";
+
+const actionSchema = z.object({
+  action: z.enum(["explore", "move", "attack", "flee", "loot", "ignore"]),
+});
+
+function getTimestamp(): string {
+  const now = new Date();
+  return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -21,9 +30,7 @@ export async function registerRoutes(
         isActive: true,
       });
 
-      // Create initial logs
-      const now = new Date();
-      const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      const timestamp = getTimestamp();
       
       await storage.createEventLog({
         gameId: session.id,
@@ -41,6 +48,7 @@ export async function registerRoutes(
 
       res.json(session);
     } catch (error) {
+      console.error("Start game error:", error);
       res.status(500).json({ error: "Failed to start game" });
     }
   });
@@ -58,6 +66,7 @@ export async function registerRoutes(
 
       res.json({ session, logs, encounter });
     } catch (error) {
+      console.error("Get active game error:", error);
       res.status(500).json({ error: "Failed to get game session" });
     }
   });
@@ -66,15 +75,32 @@ export async function registerRoutes(
   app.post("/api/game/:gameId/action", async (req, res) => {
     try {
       const { gameId } = req.params;
-      const { action } = req.body;
+      
+      // Validate action payload
+      const parseResult = actionSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid action", details: parseResult.error.errors });
+      }
+      const { action } = parseResult.data;
 
       const session = await storage.getGameSession(gameId);
       if (!session) {
         return res.status(404).json({ error: "Game session not found" });
       }
 
-      const now = new Date();
-      const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      // Check if game is still active
+      if (!session.isActive) {
+        return res.status(400).json({ error: "Game session has ended" });
+      }
+
+      // Check if player is dead
+      if (session.health <= 0) {
+        await storage.endGameSession(gameId);
+        return res.status(400).json({ error: "Operator terminated. Game over." });
+      }
+
+      const timestamp = getTimestamp();
+      const currentEncounter = await storage.getActiveEncounter(gameId);
 
       let updates: any = {};
       let newEncounter = null;
@@ -83,6 +109,16 @@ export async function registerRoutes(
 
       switch (action) {
         case "explore": {
+          // Prevent exploring during active encounter
+          if (currentEncounter) {
+            return res.status(400).json({ error: "Cannot explore while encounter is active. Resolve current encounter first." });
+          }
+
+          // Check energy
+          if (session.energy < 5) {
+            return res.status(400).json({ error: "Not enough energy to explore." });
+          }
+
           const rand = Math.random();
           if (rand > 0.6) {
             newEncounter = await storage.createEncounter({
@@ -115,21 +151,22 @@ export async function registerRoutes(
         }
 
         case "move": {
-          const currentEncounter = await storage.getActiveEncounter(gameId);
+          // Resolve any active encounter when moving
           if (currentEncounter) {
             await storage.resolveEncounter(currentEncounter.id);
           }
+          
+          const newEnergy = Math.max(0, session.energy - 5);
           updates.gameState = "idle";
-          updates.energy = Math.max(0, session.energy - 5);
+          updates.energy = newEnergy;
           logText = "Moving to next sector. Energy consumed: 5";
           logType = "info";
           break;
         }
 
         case "attack": {
-          const currentEncounter = await storage.getActiveEncounter(gameId);
-          if (!currentEncounter) {
-            return res.status(400).json({ error: "No active encounter" });
+          if (!currentEncounter || currentEncounter.type !== "enemy") {
+            return res.status(400).json({ error: "No hostile to engage" });
           }
 
           const damage = Math.floor(Math.random() * 20) + 10;
@@ -149,12 +186,20 @@ export async function registerRoutes(
             timestamp,
           });
 
-          updates.health = Math.max(0, session.health - enemyDmg);
+          const newHealth = Math.max(0, session.health - enemyDmg);
+          updates.health = newHealth;
 
-          if (Math.random() > 0.5) {
+          // Check for death
+          if (newHealth <= 0) {
             await storage.resolveEncounter(currentEncounter.id);
             updates.gameState = "idle";
-            updates.credits = session.credits + 50;
+            updates.isActive = false;
+            logText = "CRITICAL FAILURE. Hull integrity compromised. Operator terminated.";
+            logType = "alert";
+          } else if (Math.random() > 0.5) {
+            await storage.resolveEncounter(currentEncounter.id);
+            updates.gameState = "idle";
+            updates.credits = Math.min(99999, session.credits + 50);
             logText = "Target eliminated. +50 Credits harvested.";
             logType = "loot";
           } else {
@@ -165,34 +210,42 @@ export async function registerRoutes(
         }
 
         case "flee": {
-          const currentEncounter = await storage.getActiveEncounter(gameId);
-          if (currentEncounter) {
-            await storage.resolveEncounter(currentEncounter.id);
+          if (!currentEncounter) {
+            return res.status(400).json({ error: "Nothing to flee from" });
           }
+          
+          const fleeEnergyCost = 20;
+          if (session.energy < fleeEnergyCost) {
+            return res.status(400).json({ error: "Not enough energy to emergency warp" });
+          }
+
+          await storage.resolveEncounter(currentEncounter.id);
           updates.gameState = "idle";
-          updates.energy = Math.max(0, session.energy - 20);
+          updates.energy = Math.max(0, session.energy - fleeEnergyCost);
           logText = "Emergency warp initiated. Escaped successfully.";
           logType = "info";
           break;
         }
 
         case "loot": {
-          const currentEncounter = await storage.getActiveEncounter(gameId);
-          if (currentEncounter) {
-            await storage.resolveEncounter(currentEncounter.id);
+          if (!currentEncounter || currentEncounter.type !== "loot") {
+            return res.status(400).json({ error: "No data cache to harvest" });
           }
+
+          await storage.resolveEncounter(currentEncounter.id);
           updates.gameState = "idle";
-          updates.credits = session.credits + 100;
+          updates.credits = Math.min(99999, session.credits + 100);
           logText = "Decryption successful. +100 Credits added to account.";
           logType = "loot";
           break;
         }
 
         case "ignore": {
-          const currentEncounter = await storage.getActiveEncounter(gameId);
-          if (currentEncounter) {
-            await storage.resolveEncounter(currentEncounter.id);
+          if (!currentEncounter) {
+            return res.status(400).json({ error: "Nothing to ignore" });
           }
+
+          await storage.resolveEncounter(currentEncounter.id);
           updates.gameState = "idle";
           logText = "Signal ignored.";
           logType = "info";
@@ -231,6 +284,7 @@ export async function registerRoutes(
       await storage.endGameSession(gameId);
       res.json({ success: true });
     } catch (error) {
+      console.error("End game error:", error);
       res.status(500).json({ error: "Failed to end game" });
     }
   });
