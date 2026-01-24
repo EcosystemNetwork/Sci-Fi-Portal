@@ -1,83 +1,120 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { AlertTriangle, Sparkles } from "lucide-react";
 
 interface ActionDisplayProps {
   encounter: {
     type: string;
     name: string;
     description: string;
-    image?: string;
   } | null;
 }
 
 export function ActionDisplay({ encounter }: ActionDisplayProps) {
   if (!encounter) {
     return (
-      <div className="h-full flex flex-col items-center justify-center border border-primary/20 bg-black/60 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-[url('/portal-bg.png')] bg-cover bg-center opacity-40 mix-blend-screen" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+      <div className="h-full flex flex-col items-center justify-center bg-gradient-to-b from-black/80 via-card/50 to-black/80 relative overflow-hidden rounded">
+        {/* Ambient Background */}
+        <div className="absolute inset-0 bg-[url('/portal-bg.png')] bg-cover bg-center opacity-20" />
+        <div className="absolute inset-0 bg-gradient-radial from-primary/5 via-transparent to-transparent" />
         
         <div className="z-10 text-center space-y-4 p-8">
-          <div className="w-24 h-24 mx-auto border-2 border-primary/30 rounded-full flex items-center justify-center animate-spin-slow">
-            <div className="w-16 h-16 border border-primary/50 rounded-full" />
+          {/* Scanning Animation */}
+          <div className="relative w-24 h-24 mx-auto">
+            <div className="absolute inset-0 border border-primary/20 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+            <div className="absolute inset-2 border border-primary/30 rounded-full animate-spin-slow" />
+            <div className="absolute inset-6 bg-primary/10 rounded-full animate-pulse" />
           </div>
-          <h2 className="font-display text-2xl text-primary animate-pulse">SECTOR CLEAR</h2>
-          <p className="font-mono text-muted-foreground max-w-md">
-            Sensors indicate no immediate threats. Quantum stabilizers are holding. Ready for next jump coordinates.
-          </p>
+          
+          <div className="space-y-2">
+            <h2 className="font-display text-xl text-primary/80">SECTOR CLEAR</h2>
+            <p className="font-mono text-xs text-muted-foreground max-w-sm">
+              No anomalies detected. Quantum stabilizers holding. Ready for next scan.
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="h-full border border-primary/20 bg-black/60 relative overflow-hidden flex flex-col">
-      {/* Viewport Overlay Effects */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-20 pointer-events-none bg-[length:100%_2px,3px_100%]" />
-      
-      {/* Content */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-8 text-center">
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          key={encounter.name}
-          className="mb-8 relative"
-        >
-          <div className="w-64 h-64 bg-black/50 border border-primary/50 rounded-full flex items-center justify-center overflow-hidden relative shadow-[0_0_30px_rgba(0,255,255,0.2)]">
-            {/* Placeholder for dynamic encounter image */}
-            <div className={cn(
-              "w-48 h-48 rounded-full animate-pulse",
-              encounter.type === 'enemy' ? "bg-destructive/20 shadow-[0_0_50px_rgba(255,0,0,0.5)]" : "bg-secondary/20 shadow-[0_0_50px_rgba(255,0,255,0.5)]"
-            )} />
-            <div className="absolute inset-0 flex items-center justify-center font-display text-4xl font-bold opacity-50">
-               {encounter.type === 'enemy' ? '⚠️' : '💠'}
-            </div>
-          </div>
-          
-          {/* Target Reticle */}
-          <div className="absolute -inset-4 border border-primary/30 rounded-full animate-[spin_10s_linear_infinite]" />
-          <div className="absolute -inset-4 border-t-2 border-primary rounded-full w-full h-full rotate-45" />
-        </motion.div>
+  const isEnemy = encounter.type === 'enemy';
 
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2 }}
+  return (
+    <div className="h-full bg-gradient-to-b from-black/80 via-card/50 to-black/80 relative overflow-hidden flex flex-col rounded">
+      {/* Scanlines */}
+      <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px] z-10 pointer-events-none" />
+      
+      <AnimatePresence mode="wait">
+        <motion.div 
+          key={encounter.name}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 1.05 }}
+          transition={{ duration: 0.3 }}
+          className="relative z-0 flex-1 flex flex-col items-center justify-center p-6"
         >
-          <div className="inline-block px-3 py-1 bg-primary/10 border border-primary/30 text-primary font-mono text-xs mb-4 uppercase tracking-widest">
-            {encounter.type === 'enemy' ? 'Hostile Entity Detected' : 'Resource Signal Found'}
-          </div>
-          <h2 className={cn(
-            "font-display text-4xl font-bold mb-4 tracking-wide",
-            encounter.type === 'enemy' ? "text-destructive text-shadow-red" : "text-secondary text-shadow-purple"
-          )}>
-            {encounter.name}
-          </h2>
-          <p className="font-mono text-lg text-muted-foreground max-w-lg leading-relaxed">
-            {encounter.description}
-          </p>
+          {/* Alert Badge */}
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className={cn(
+              "inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs font-mono tracking-wider mb-6",
+              isEnemy 
+                ? "bg-destructive/20 text-destructive border border-destructive/30" 
+                : "bg-secondary/20 text-secondary border border-secondary/30"
+            )}
+          >
+            {isEnemy ? <AlertTriangle className="w-3 h-3" /> : <Sparkles className="w-3 h-3" />}
+            {isEnemy ? 'HOSTILE DETECTED' : 'SIGNAL FOUND'}
+          </motion.div>
+
+          {/* Entity Visualization */}
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, type: "spring" }}
+            className="relative mb-6"
+          >
+            <div className={cn(
+              "w-40 h-40 rounded-full border-2 flex items-center justify-center relative",
+              isEnemy 
+                ? "border-destructive/50 shadow-[0_0_40px_hsl(var(--destructive)/0.3)]" 
+                : "border-secondary/50 shadow-[0_0_40px_hsl(var(--secondary)/0.3)]"
+            )}>
+              <div className={cn(
+                "absolute inset-4 rounded-full animate-pulse",
+                isEnemy ? "bg-destructive/20" : "bg-secondary/20"
+              )} />
+              <span className="text-5xl z-10">{isEnemy ? '👾' : '💎'}</span>
+            </div>
+            
+            {/* Targeting Reticle */}
+            <div className={cn(
+              "absolute -inset-4 border rounded-full animate-spin-slow",
+              isEnemy ? "border-destructive/30 border-t-destructive" : "border-secondary/30 border-t-secondary"
+            )} style={{ animationDuration: '8s' }} />
+          </motion.div>
+
+          {/* Info */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-center max-w-md"
+          >
+            <h2 className={cn(
+              "font-display text-2xl font-bold mb-2 tracking-wide",
+              isEnemy ? "text-destructive" : "text-secondary"
+            )}>
+              {encounter.name.toUpperCase()}
+            </h2>
+            <p className="font-sans text-sm text-muted-foreground leading-relaxed">
+              {encounter.description}
+            </p>
+          </motion.div>
         </motion.div>
-      </div>
+      </AnimatePresence>
     </div>
   );
 }

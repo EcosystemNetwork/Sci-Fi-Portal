@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { startGame } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Gamepad2, Users, Trophy, Settings, CreditCard, Zap, Shield, Skull, Star } from "lucide-react";
+import { Gamepad2, Users, Trophy, Settings, Zap, Shield, Skull, Star, ChevronRight } from "lucide-react";
 
 export default function Home() {
   const [, setLocation] = useLocation();
@@ -25,222 +25,213 @@ export default function Home() {
   });
 
   return (
-    <div className="min-h-screen w-full bg-background flex relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute inset-0 bg-[url('/portal-bg.png')] bg-cover bg-center opacity-10" />
-      <div className="scanline-overlay z-50 opacity-20 pointer-events-none" />
+    <div className="min-h-screen w-full flex relative overflow-hidden">
+      <div className="scanline-overlay" />
 
       {/* Left Sidebar */}
-      <div className="w-72 bg-black/80 border-r border-primary/30 flex flex-col z-10 backdrop-blur-sm">
-        {/* Logo/Title */}
-        <div className="p-6 border-b border-primary/20">
-          <h1 className="font-display text-2xl font-bold text-white tracking-tight">
-            VOID<span className="text-primary">WALKER</span>
+      <aside className="w-64 bg-card/80 backdrop-blur-lg border-r border-primary/10 flex flex-col z-10">
+        {/* Logo */}
+        <div className="p-5 border-b border-primary/10">
+          <h1 className="font-display text-xl font-bold tracking-tight">
+            <span className="text-white">VOID</span>
+            <span className="text-primary text-glow">WALKER</span>
           </h1>
-          <p className="text-xs text-primary/60 font-mono mt-1 tracking-widest">PROTOCOL V2.0</p>
+          <p className="text-[10px] text-muted-foreground font-mono mt-1 tracking-[0.3em]">PROTOCOL</p>
         </div>
 
-        {/* Menu Items */}
-        <div className="flex-1 p-4 space-y-2">
+        {/* Menu */}
+        <nav className="flex-1 p-3 space-y-1">
           <Button 
-            className="w-full justify-start h-12 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/50 font-display tracking-wider"
+            className="w-full justify-start h-12 bg-gradient-to-r from-primary/20 to-primary/5 hover:from-primary/30 hover:to-primary/10 text-primary border border-primary/30 font-sans text-sm font-semibold tracking-wide btn-glow"
             onClick={() => startGameMutation.mutate()}
             disabled={startGameMutation.isPending}
             data-testid="button-new-run"
           >
-            <Zap className="w-5 h-5 mr-3" />
-            {startGameMutation.isPending ? "INITIALIZING..." : "NEW RUN"}
+            <Zap className="w-4 h-4 mr-3" />
+            {startGameMutation.isPending ? "LOADING..." : "NEW RUN"}
+            <ChevronRight className="w-4 h-4 ml-auto opacity-50" />
           </Button>
 
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start h-12 text-muted-foreground hover:text-primary hover:bg-primary/10 font-display tracking-wider"
-            data-testid="button-my-runs"
-          >
-            <Gamepad2 className="w-5 h-5 mr-3" />
-            MY RUNS
+          <Button variant="ghost" className="menu-item" data-testid="button-my-runs">
+            <Gamepad2 className="w-4 h-4 mr-3 opacity-60" />
+            My Runs
           </Button>
 
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start h-12 text-muted-foreground hover:text-primary hover:bg-primary/10 font-display tracking-wider"
-            data-testid="button-practice"
-          >
-            <Shield className="w-5 h-5 mr-3" />
-            PRACTICE MODE
+          <Button variant="ghost" className="menu-item" data-testid="button-practice">
+            <Shield className="w-4 h-4 mr-3 opacity-60" />
+            Practice
           </Button>
 
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start h-12 text-muted-foreground hover:text-primary hover:bg-primary/10 font-display tracking-wider"
-            data-testid="button-leaderboard"
-          >
-            <Trophy className="w-5 h-5 mr-3" />
-            LEADERBOARD
+          <Button variant="ghost" className="menu-item" data-testid="button-leaderboard">
+            <Trophy className="w-4 h-4 mr-3 opacity-60" />
+            Leaderboard
           </Button>
 
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start h-12 text-muted-foreground hover:text-primary hover:bg-primary/10 font-display tracking-wider"
-            data-testid="button-settings"
-          >
-            <Settings className="w-5 h-5 mr-3" />
-            SETTINGS
+          <Button variant="ghost" className="menu-item" data-testid="button-settings">
+            <Settings className="w-4 h-4 mr-3 opacity-60" />
+            Settings
           </Button>
 
-          <Separator className="my-4 bg-primary/20" />
+          <Separator className="my-4 bg-primary/10" />
 
-          <div className="bg-black/40 border border-primary/20 p-4 rounded-sm">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono text-muted-foreground">ENTRY FEE</span>
-              <CreditCard className="w-4 h-4 text-primary/60" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-display font-bold text-white">FREE</span>
-              <span className="text-xs text-primary/60 font-mono">BETA</span>
+          <div className="stat-card rounded">
+            <p className="text-[10px] font-mono text-muted-foreground mb-1">ENTRY FEE</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-display font-bold text-white">FREE</span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-primary/20 text-primary font-mono rounded">BETA</span>
             </div>
           </div>
-        </div>
+        </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-primary/20">
+        <div className="p-4 border-t border-primary/10 bg-black/30">
           <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground mb-3">
-            <Users className="w-4 h-4 text-primary" />
-            <span><span className="text-primary font-bold">24</span> OPERATORS ONLINE</span>
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span><span className="text-white font-medium">24</span> online</span>
           </div>
           <Button 
             variant="outline" 
-            className="w-full border-primary/30 text-primary hover:bg-primary/10 font-mono text-xs"
+            size="sm"
+            className="w-full border-primary/20 text-primary/80 hover:text-primary hover:bg-primary/10 font-mono text-xs"
             data-testid="button-connect"
           >
-            CONNECT WALLET
+            <Users className="w-3 h-3 mr-2" />
+            Connect
           </Button>
         </div>
-      </div>
+      </aside>
 
-      {/* Center - Portal Visualization */}
-      <div className="flex-1 flex items-center justify-center relative">
-        {/* Animated Portal */}
-        <div className="relative w-96 h-96">
-          {/* Outer glow rings */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/20 via-secondary/20 to-primary/20 animate-spin-slow blur-xl" />
-          <div className="absolute inset-4 rounded-full bg-gradient-to-b from-primary/30 to-secondary/30 animate-pulse blur-lg" />
+      {/* Center - Portal */}
+      <main className="flex-1 flex items-center justify-center relative">
+        {/* Ambient Background */}
+        <div className="absolute inset-0 bg-gradient-radial from-primary/5 via-transparent to-transparent" />
+        
+        {/* Portal Container */}
+        <div className="relative animate-float">
+          {/* Outer Glow */}
+          <div className="absolute -inset-16 rounded-full bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 blur-3xl animate-spin-slow" />
           
-          {/* Portal core */}
-          <div className="absolute inset-8 rounded-full bg-black/80 border-2 border-primary/50 overflow-hidden">
-            <div className="absolute inset-0 bg-[url('/portal-bg.png')] bg-cover bg-center opacity-60 animate-pulse" />
-            <div className="absolute inset-0 bg-gradient-to-t from-primary/40 via-transparent to-secondary/40" />
+          {/* Portal Frame */}
+          <div className="relative w-72 h-72 md:w-96 md:h-96">
+            {/* Spinning Rings */}
+            <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-spin-slow" />
+            <div className="absolute inset-4 rounded-full border border-secondary/20 animate-spin-reverse" />
+            <div className="absolute inset-8 rounded-full border border-primary/30 animate-spin-slow" style={{ animationDuration: '25s' }} />
             
-            {/* Inner swirl effect */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-32 h-32 rounded-full border border-primary/30 animate-spin" style={{ animationDuration: '8s' }} />
-              <div className="absolute w-24 h-24 rounded-full border border-secondary/30 animate-spin" style={{ animationDuration: '6s', animationDirection: 'reverse' }} />
-              <div className="absolute w-16 h-16 rounded-full bg-primary/20 animate-pulse" />
+            {/* Core */}
+            <div className="absolute inset-12 rounded-full bg-gradient-to-br from-black via-primary/10 to-black border border-primary/20 overflow-hidden animate-pulse-glow">
+              <div className="absolute inset-0 bg-[url('/portal-bg.png')] bg-cover bg-center opacity-50 mix-blend-screen" />
+              <div className="absolute inset-0 bg-gradient-to-t from-primary/30 via-transparent to-secondary/20" />
+              
+              {/* Inner Details */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-primary/20 blur-xl animate-pulse" />
+              </div>
+            </div>
+            
+            {/* Particles */}
+            <div className="absolute inset-0 animate-spin-slow" style={{ animationDuration: '12s' }}>
+              <div className="absolute top-4 left-1/2 w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_8px_hsl(var(--primary))]" />
+            </div>
+            <div className="absolute inset-0 animate-spin-reverse" style={{ animationDuration: '18s' }}>
+              <div className="absolute bottom-8 right-1/4 w-1 h-1 bg-secondary rounded-full shadow-[0_0_6px_hsl(var(--secondary))]" />
             </div>
           </div>
-
-          {/* Orbital particles */}
-          <div className="absolute inset-0 animate-spin" style={{ animationDuration: '20s' }}>
-            <div className="absolute top-0 left-1/2 w-2 h-2 bg-primary rounded-full shadow-[0_0_10px_rgba(0,255,255,0.8)]" />
-          </div>
-          <div className="absolute inset-0 animate-spin" style={{ animationDuration: '15s', animationDirection: 'reverse' }}>
-            <div className="absolute bottom-0 right-1/4 w-1.5 h-1.5 bg-secondary rounded-full shadow-[0_0_10px_rgba(255,0,255,0.8)]" />
-          </div>
         </div>
 
-        {/* Portal Label */}
-        <div className="absolute bottom-20 text-center">
-          <p className="font-mono text-sm text-primary/60 tracking-widest animate-pulse">QUANTUM RIFT STABLE</p>
-          <p className="font-display text-xl text-white mt-2">READY FOR INSERTION</p>
+        {/* Status Text */}
+        <div className="absolute bottom-16 text-center">
+          <p className="text-xs font-mono text-primary/50 tracking-[0.3em] mb-2">QUANTUM RIFT</p>
+          <p className="font-display text-lg text-white/80 tracking-wide">STABLE • AWAITING OPERATOR</p>
         </div>
-      </div>
+      </main>
 
-      {/* Right Panel - Stats & Rewards */}
-      <div className="w-80 bg-black/80 border-l border-primary/30 flex flex-col z-10 backdrop-blur-sm">
+      {/* Right Panel */}
+      <aside className="w-72 bg-card/80 backdrop-blur-lg border-l border-primary/10 flex flex-col z-10">
         {/* Header */}
-        <div className="p-6 border-b border-primary/20">
-          <h2 className="font-display text-lg font-bold text-white tracking-wider">VOID REWARDS</h2>
+        <div className="panel-header">
+          <h2 className="font-display text-sm font-bold text-white/90 tracking-wider">VOID REWARDS</h2>
         </div>
 
-        <div className="flex-1 p-4 space-y-4 overflow-auto">
-          {/* Token Stats */}
-          <div className="bg-black/40 border border-primary/20 p-4 rounded-sm">
+        <div className="flex-1 p-3 space-y-3 overflow-auto">
+          {/* Tokens */}
+          <div className="stat-card rounded">
             <div className="flex items-center gap-2 mb-3">
-              <Star className="w-5 h-5 text-secondary" />
-              <span className="font-display text-sm text-white tracking-wider">QUANTUM TOKENS</span>
+              <Star className="w-4 h-4 text-secondary" />
+              <span className="font-sans text-xs font-semibold text-white/80 tracking-wide">Quantum Tokens</span>
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground font-mono">EARNED</span>
-                <span className="text-primary font-mono">1,250</span>
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Earned</span>
+                <span className="text-primary">1,250</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground font-mono">AVAILABLE</span>
-                <span className="text-white font-mono">850</span>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Available</span>
+                <span className="text-white">850</span>
               </div>
-              <Separator className="bg-primary/20 my-2" />
-              <div className="text-xs text-primary/60 font-mono">CLAIM REWARDS AFTER RUN</div>
             </div>
           </div>
 
-          {/* Kill Stats */}
-          <div className="bg-black/40 border border-primary/20 p-4 rounded-sm">
+          {/* Eliminations */}
+          <div className="stat-card rounded">
             <div className="flex items-center gap-2 mb-3">
-              <Skull className="w-5 h-5 text-destructive" />
-              <span className="font-display text-sm text-white tracking-wider">ENTITY ELIMINATIONS</span>
+              <Skull className="w-4 h-4 text-destructive" />
+              <span className="font-sans text-xs font-semibold text-white/80 tracking-wide">Eliminations</span>
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground font-mono text-sm">VOID STALKERS</span>
-                <span className="text-destructive font-display text-lg">47</span>
+            <div className="grid grid-cols-2 gap-3 text-center">
+              <div>
+                <p className="text-2xl font-display font-bold text-destructive">47</p>
+                <p className="text-[10px] text-muted-foreground font-mono">HOSTILES</p>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground font-mono text-sm">DATA CACHES</span>
-                <span className="text-secondary font-display text-lg">128</span>
+              <div>
+                <p className="text-2xl font-display font-bold text-secondary">128</p>
+                <p className="text-[10px] text-muted-foreground font-mono">CACHES</p>
               </div>
-              <div className="w-full bg-muted/30 h-1.5 rounded-full mt-2">
-                <div className="bg-gradient-to-r from-primary to-secondary h-full rounded-full" style={{ width: '65%' }} />
+            </div>
+            <div className="mt-3">
+              <div className="progress-bar">
+                <div className="progress-bar-fill bg-gradient-to-r from-primary to-secondary" style={{ width: '65%' }} />
               </div>
-              <div className="text-xs text-primary/60 font-mono text-center">65% TO NEXT RANK</div>
+              <p className="text-[10px] text-muted-foreground font-mono text-center mt-1">65% to next rank</p>
             </div>
           </div>
 
-          {/* Active Bounties */}
-          <div className="bg-black/40 border border-destructive/30 p-4 rounded-sm">
+          {/* Bounties */}
+          <div className="stat-card rounded border-destructive/20">
             <div className="flex items-center justify-between mb-3">
-              <span className="font-display text-sm text-white tracking-wider">ACTIVE BOUNTIES</span>
-              <span className="text-xs bg-destructive/20 text-destructive px-2 py-0.5 font-mono">HOT</span>
+              <span className="font-sans text-xs font-semibold text-white/80 tracking-wide">Active Bounties</span>
+              <span className="text-[9px] px-1.5 py-0.5 bg-destructive/20 text-destructive font-mono rounded">HOT</span>
             </div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-destructive/20 flex items-center justify-center border border-destructive/30">
-                  <Skull className="w-5 h-5 text-destructive" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 p-2 bg-black/30 rounded">
+                <div className="w-8 h-8 rounded-full bg-destructive/10 border border-destructive/20 flex items-center justify-center">
+                  <Skull className="w-4 h-4 text-destructive" />
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm text-white font-display">PHANTOM CORE</p>
-                  <p className="text-xs text-muted-foreground font-mono">500 CREDITS</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-white font-medium truncate">Phantom Core</p>
+                  <p className="text-[10px] text-primary font-mono">500 CR</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-secondary/20 flex items-center justify-center border border-secondary/30">
-                  <Zap className="w-5 h-5 text-secondary" />
+              <div className="flex items-center gap-2 p-2 bg-black/30 rounded">
+                <div className="w-8 h-8 rounded-full bg-secondary/10 border border-secondary/20 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-secondary" />
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm text-white font-display">NEXUS SHARD</p>
-                  <p className="text-xs text-muted-foreground font-mono">250 CREDITS</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-white font-medium truncate">Nexus Shard</p>
+                  <p className="text-[10px] text-primary font-mono">250 CR</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Bottom CTA */}
-        <div className="p-4 border-t border-primary/20">
-          <div className="text-xs font-mono text-center text-muted-foreground mb-2">
-            SEASON 1 ENDS IN <span className="text-primary">14D 06H</span>
-          </div>
+        {/* Season Timer */}
+        <div className="p-3 border-t border-primary/10 bg-black/30">
+          <p className="text-[10px] font-mono text-center text-muted-foreground">
+            Season 1 ends in <span className="text-primary font-medium">14D 06H</span>
+          </p>
         </div>
-      </div>
+      </aside>
     </div>
   );
 }

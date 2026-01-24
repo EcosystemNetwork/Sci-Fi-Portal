@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Sword, Footprints, Search, DoorOpen, Skull } from "lucide-react";
+import { Sword, Footprints, Search, DoorOpen } from "lucide-react";
 
 interface ControlsProps {
   onAction: (action: string) => void;
@@ -8,22 +8,23 @@ interface ControlsProps {
 
 export function Controls({ onAction, gameState }: ControlsProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 border-t border-primary/20 bg-black/20">
+    <div className="grid grid-cols-2 gap-3 p-4 bg-card/60 backdrop-blur-sm border border-primary/10 rounded">
       {gameState === 'idle' && (
         <>
           <Button 
-            variant="outline" 
-            className="h-14 border-primary/50 hover:bg-primary/20 hover:text-primary font-display tracking-widest uppercase text-lg"
+            className="h-12 bg-gradient-to-r from-primary/20 to-primary/10 hover:from-primary/30 hover:to-primary/20 text-primary border border-primary/30 font-display tracking-wider text-sm btn-glow"
             onClick={() => onAction('explore')}
+            data-testid="button-scan"
           >
-            <Search className="mr-2 h-5 w-5" /> Scan Sector
+            <Search className="mr-2 h-4 w-4" /> SCAN SECTOR
           </Button>
           <Button 
-            variant="outline" 
-            className="h-14 border-primary/50 hover:bg-primary/20 hover:text-primary font-display tracking-widest uppercase text-lg"
+            variant="outline"
+            className="h-12 border-primary/20 text-primary/80 hover:bg-primary/10 hover:text-primary font-display tracking-wider text-sm"
             onClick={() => onAction('move')}
+            data-testid="button-move"
           >
-            <Footprints className="mr-2 h-5 w-5" /> Move Forward
+            <Footprints className="mr-2 h-4 w-4" /> ADVANCE
           </Button>
         </>
       )}
@@ -31,18 +32,19 @@ export function Controls({ onAction, gameState }: ControlsProps) {
       {gameState === 'combat' && (
         <>
           <Button 
-            variant="default" 
-            className="h-14 bg-destructive hover:bg-destructive/80 text-destructive-foreground font-display tracking-widest uppercase text-lg border-none shadow-[0_0_15px_rgba(255,0,0,0.5)]"
+            className="h-12 bg-gradient-to-r from-destructive/80 to-destructive/60 hover:from-destructive hover:to-destructive/80 text-white font-display tracking-wider text-sm shadow-[0_0_20px_hsl(var(--destructive)/0.3)]"
             onClick={() => onAction('attack')}
+            data-testid="button-attack"
           >
-            <Sword className="mr-2 h-5 w-5" /> Engage Hostile
+            <Sword className="mr-2 h-4 w-4" /> ENGAGE
           </Button>
           <Button 
-            variant="secondary" 
-            className="h-14 bg-primary/20 hover:bg-primary/30 text-primary font-display tracking-widest uppercase text-lg border border-primary/50"
+            variant="outline"
+            className="h-12 border-muted-foreground/30 text-muted-foreground hover:bg-muted/20 font-display tracking-wider text-sm"
             onClick={() => onAction('flee')}
+            data-testid="button-flee"
           >
-            <DoorOpen className="mr-2 h-5 w-5" /> Emergency Warp
+            <DoorOpen className="mr-2 h-4 w-4" /> WARP OUT
           </Button>
         </>
       )}
@@ -50,18 +52,19 @@ export function Controls({ onAction, gameState }: ControlsProps) {
       {gameState === 'loot' && (
         <>
           <Button 
-            variant="default" 
-            className="h-14 bg-secondary hover:bg-secondary/80 text-white font-display tracking-widest uppercase text-lg border-none shadow-[0_0_15px_rgba(255,0,255,0.5)]"
+            className="h-12 bg-gradient-to-r from-secondary/80 to-secondary/60 hover:from-secondary hover:to-secondary/80 text-white font-display tracking-wider text-sm shadow-[0_0_20px_hsl(var(--secondary)/0.3)]"
             onClick={() => onAction('loot')}
+            data-testid="button-harvest"
           >
-            <Search className="mr-2 h-5 w-5" /> Harvest Data
+            <Search className="mr-2 h-4 w-4" /> HARVEST
           </Button>
           <Button 
-            variant="outline" 
-            className="h-14 border-primary/50 hover:bg-primary/20 hover:text-primary font-display tracking-widest uppercase text-lg"
+            variant="outline"
+            className="h-12 border-muted-foreground/30 text-muted-foreground hover:bg-muted/20 font-display tracking-wider text-sm"
             onClick={() => onAction('ignore')}
+            data-testid="button-ignore"
           >
-            Ignore Signal
+            IGNORE
           </Button>
         </>
       )}
