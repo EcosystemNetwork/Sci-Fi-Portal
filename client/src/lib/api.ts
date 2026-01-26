@@ -1,4 +1,4 @@
-import type { GameSession, Encounter, EventLog } from "@shared/schema";
+import type { GameSession, Encounter, EventLog, AlienRace } from "@shared/schema";
 
 export interface GameState {
   session: GameSession;
@@ -45,4 +45,43 @@ export async function endGame(gameId: string): Promise<void> {
   if (!response.ok) {
     throw new Error("Failed to end game");
   }
+}
+
+// Wiki API
+export interface WikiStats {
+  totalRaces: number;
+  categories: number;
+  categoryList: string[];
+}
+
+export async function getAllAlienRaces(): Promise<AlienRace[]> {
+  const response = await fetch("/api/wiki/aliens");
+  if (!response.ok) {
+    throw new Error("Failed to get alien races");
+  }
+  return response.json();
+}
+
+export async function getAlienRacesByCategory(category: string): Promise<AlienRace[]> {
+  const response = await fetch(`/api/wiki/aliens/category/${encodeURIComponent(category)}`);
+  if (!response.ok) {
+    throw new Error("Failed to get alien races by category");
+  }
+  return response.json();
+}
+
+export async function getRandomAlienRace(): Promise<AlienRace> {
+  const response = await fetch("/api/wiki/aliens/random");
+  if (!response.ok) {
+    throw new Error("Failed to get random alien race");
+  }
+  return response.json();
+}
+
+export async function getWikiStats(): Promise<WikiStats> {
+  const response = await fetch("/api/wiki/stats");
+  if (!response.ok) {
+    throw new Error("Failed to get wiki stats");
+  }
+  return response.json();
 }

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { GameLayout } from "@/components/layout/GameLayout";
 import { StatusPanel } from "@/components/game/StatusPanel";
 import { EventLog } from "@/components/game/EventLog";
@@ -8,6 +8,7 @@ import { Controls } from "@/components/game/Controls";
 import { ActionDisplay } from "@/components/game/ActionDisplay";
 import { getActiveGame, performAction } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 export default function Game() {
   const [, setLocation] = useLocation();
@@ -84,6 +85,18 @@ export default function Game() {
       <div className="grid grid-cols-12 gap-6 h-full">
         {/* Left Panel: Status & Logs */}
         <div className="col-span-12 md:col-span-3 flex flex-col gap-6 h-full">
+          <div className="flex-none">
+            <Link href="/wiki">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full border-primary/30 hover:bg-primary/20 text-primary font-mono text-xs"
+                data-testid="link-wiki"
+              >
+                👽 ALIEN RACES WIKI
+              </Button>
+            </Link>
+          </div>
           <div className="flex-none h-auto">
             <StatusPanel 
               health={session.health} 
