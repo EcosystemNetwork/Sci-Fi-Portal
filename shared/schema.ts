@@ -63,3 +63,22 @@ export const insertEventLogSchema = createInsertSchema(eventLogs).omit({
 
 export type InsertEventLog = z.infer<typeof insertEventLogSchema>;
 export type EventLog = typeof eventLogs.$inferSelect;
+
+// Alien Races Wiki Table
+export const alienRaces = pgTable("alien_races", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  description: text("description"),
+  traits: text("traits"),
+  videoPrompt: text("video_prompt"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertAlienRaceSchema = createInsertSchema(alienRaces).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertAlienRace = z.infer<typeof insertAlienRaceSchema>;
+export type AlienRace = typeof alienRaces.$inferSelect;

@@ -33,6 +33,16 @@ Preferred communication style: Simple, everyday language.
   - `game_sessions`: Tracks player stats (health, energy, credits, level, game state)
   - `encounters`: Stores active encounters per game session
   - `event_logs`: Mission log entries with timestamps and event types
+  - `alien_races`: Wiki database of 80+ alien races with video generation prompts
+
+### Alien Races Wiki
+- **Categories**: Classic UFOlogy, Reptilian/Insectoid, Interdimensional, Humanoid/Hybrid, Ancient/Mythic, Sci-Fi Culture, Fringe Lore
+- **API Endpoints**:
+  - `GET /api/wiki/aliens` - Get all races
+  - `GET /api/wiki/aliens/category/:category` - Get by category
+  - `GET /api/wiki/aliens/random` - Get random race for video generation
+  - `POST /api/wiki/aliens/seed` - Seed the database
+  - `GET /api/wiki/stats` - Get wiki statistics
 
 ### Key Design Patterns
 - **Shared Schema**: Database schema defined in `shared/schema.ts`, accessible to both client and server

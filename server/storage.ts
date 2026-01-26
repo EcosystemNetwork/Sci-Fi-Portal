@@ -8,9 +8,12 @@ import {
   type InsertEncounter,
   type EventLog,
   type InsertEventLog,
+  type AlienRace,
+  type InsertAlienRace,
   gameSessions,
   encounters,
   eventLogs,
+  alienRaces,
 } from "@shared/schema";
 
 const client = new pg.Client({
@@ -36,6 +39,13 @@ export interface IStorage {
   // Event Logs
   createEventLog(log: InsertEventLog): Promise<EventLog>;
   getEventLogs(gameId: string): Promise<EventLog[]>;
+
+  // Alien Races Wiki
+  createAlienRace(race: InsertAlienRace): Promise<AlienRace>;
+  getAllAlienRaces(): Promise<AlienRace[]>;
+  getAlienRacesByCategory(category: string): Promise<AlienRace[]>;
+  getRandomAlienRace(): Promise<AlienRace | undefined>;
+  getAlienRaceCount(): Promise<number>;
 }
 
 export class DbStorage implements IStorage {
@@ -101,6 +111,31 @@ export class DbStorage implements IStorage {
 
   async getEventLogs(gameId: string): Promise<EventLog[]> {
     return await db.select().from(eventLogs).where(eq(eventLogs.gameId, gameId)).orderBy(eventLogs.createdAt);
+  }
+
+  // Alien Races Wiki
+  async createAlienRace(race: InsertAlienRace): Promise<AlienRace> {
+    const [newRace] = await db.insert(alienRaces).values(race).returning();
+    return newRace;
+  }
+
+  async getAllAlienRaces(): Promise<AlienRace[]> {
+    return await db.select().from(alienRaces).orderBy(alienRaces.category, alienRaces.name);
+  }
+
+  async getAlienRacesByCategory(category: string): Promise<AlienRace[]> {
+    return await db.select().from(alienRaces).where(eq(alienRaces.category, category)).orderBy(alienRaces.name);
+  }
+
+  async getRandomAlienRace(): Promise<AlienRace | undefined> {
+    const allRaces = await db.select().from(alienRaces);
+    if (allRaces.length === 0) return undefined;
+    return allRaces[Math.floor(Math.random() * allRaces.length)];
+  }
+
+  async getAlienRaceCount(): Promise<number> {
+    const allRaces = await db.select().from(alienRaces);
+    return allRaces.length;
   }
 }
 

@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
+import { alienRaceSeedData } from "./seed-aliens";
 
 const actionSchema = z.object({
   action: z.enum(["explore", "move", "attack", "flee", "loot", "ignore"]),
@@ -286,6 +287,83 @@ export async function registerRoutes(
     } catch (error) {
       console.error("End game error:", error);
       res.status(500).json({ error: "Failed to end game" });
+    }
+  });
+
+  // ===== ALIEN RACES WIKI API =====
+
+  // Get all alien races
+  app.get("/api/wiki/aliens", async (req, res) => {
+    try {
+      const races = await storage.getAllAlienRaces();
+      res.json(races);
+    } catch (error) {
+      console.error("Get aliens error:", error);
+      res.status(500).json({ error: "Failed to get alien races" });
+    }
+  });
+
+  // Get alien races by category
+  app.get("/api/wiki/aliens/category/:category", async (req, res) => {
+    try {
+      const { category } = req.params;
+      const races = await storage.getAlienRacesByCategory(category);
+      res.json(races);
+    } catch (error) {
+      console.error("Get aliens by category error:", error);
+      res.status(500).json({ error: "Failed to get alien races by category" });
+    }
+  });
+
+  // Get a random alien race (for video generation)
+  app.get("/api/wiki/aliens/random", async (req, res) => {
+    try {
+      const race = await storage.getRandomAlienRace();
+      if (!race) {
+        return res.status(404).json({ error: "No alien races found. Please seed the database." });
+      }
+      res.json(race);
+    } catch (error) {
+      console.error("Get random alien error:", error);
+      res.status(500).json({ error: "Failed to get random alien race" });
+    }
+  });
+
+  // Seed alien races database
+  app.post("/api/wiki/aliens/seed", async (req, res) => {
+    try {
+      const count = await storage.getAlienRaceCount();
+      if (count > 0) {
+        return res.json({ message: "Database already seeded", count });
+      }
+
+      let seeded = 0;
+      for (const race of alienRaceSeedData) {
+        await storage.createAlienRace(race);
+        seeded++;
+      }
+
+      res.json({ message: "Database seeded successfully", count: seeded });
+    } catch (error) {
+      console.error("Seed aliens error:", error);
+      res.status(500).json({ error: "Failed to seed alien races" });
+    }
+  });
+
+  // Get wiki stats
+  app.get("/api/wiki/stats", async (req, res) => {
+    try {
+      const count = await storage.getAlienRaceCount();
+      const races = await storage.getAllAlienRaces();
+      const categories = Array.from(new Set(races.map(r => r.category)));
+      res.json({ 
+        totalRaces: count, 
+        categories: categories.length,
+        categoryList: categories 
+      });
+    } catch (error) {
+      console.error("Get wiki stats error:", error);
+      res.status(500).json({ error: "Failed to get wiki stats" });
     }
   });
 
