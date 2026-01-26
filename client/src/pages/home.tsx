@@ -1,14 +1,18 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { startGame } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Gamepad2, Users, Trophy, Settings, Zap, Shield, Skull, Star, ChevronRight } from "lucide-react";
+import { Gamepad2, Users, Trophy, Settings, Zap, Shield, Skull, Star, ChevronRight, Play } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import portalVideo from "@/assets/videos/portal-aliens.mp4";
 
 export default function Home() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [portalOpen, setPortalOpen] = useState(false);
 
   const startGameMutation = useMutation({
     mutationFn: startGame,
@@ -23,6 +27,14 @@ export default function Home() {
       });
     },
   });
+
+  const handleOpenPortal = () => {
+    setPortalOpen(true);
+  };
+
+  const handleClosePortal = () => {
+    setPortalOpen(false);
+  };
 
   return (
     <div className="min-h-screen w-full flex relative overflow-hidden">
@@ -107,42 +119,157 @@ export default function Home() {
         <div className="absolute inset-0 bg-gradient-radial from-primary/5 via-transparent to-transparent" />
         
         {/* Portal Container */}
-        <div className="relative animate-float">
-          {/* Outer Glow */}
-          <div className="absolute -inset-16 rounded-full bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 blur-3xl animate-spin-slow" />
+        <div className="relative">
+          {/* Outer Glow - intensifies when open */}
+          <motion.div 
+            className="absolute -inset-20 rounded-full blur-3xl"
+            animate={{
+              background: portalOpen 
+                ? "radial-gradient(circle, hsl(180 100% 50% / 0.3), hsl(280 100% 60% / 0.2), transparent)"
+                : "radial-gradient(circle, hsl(180 100% 50% / 0.1), hsl(280 100% 60% / 0.05), transparent)",
+              scale: portalOpen ? 1.2 : 1
+            }}
+            transition={{ duration: 0.8 }}
+          />
           
           {/* Portal Frame */}
-          <div className="relative w-72 h-72 md:w-96 md:h-96">
+          <motion.div 
+            className="relative w-72 h-72 md:w-[400px] md:h-[400px] cursor-pointer"
+            onClick={handleOpenPortal}
+            whileHover={{ scale: portalOpen ? 1 : 1.02 }}
+            transition={{ duration: 0.3 }}
+          >
             {/* Spinning Rings */}
-            <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-spin-slow" />
-            <div className="absolute inset-4 rounded-full border border-secondary/20 animate-spin-reverse" />
-            <div className="absolute inset-8 rounded-full border border-primary/30 animate-spin-slow" style={{ animationDuration: '25s' }} />
+            <motion.div 
+              className="absolute inset-0 rounded-full border-2 border-primary/20"
+              animate={{ 
+                rotate: 360,
+                borderColor: portalOpen ? "hsl(180 100% 50% / 0.5)" : "hsl(180 100% 50% / 0.2)"
+              }}
+              transition={{ rotate: { duration: 20, repeat: Infinity, ease: "linear" }, borderColor: { duration: 0.5 } }}
+            />
+            <motion.div 
+              className="absolute inset-4 rounded-full border border-secondary/20"
+              animate={{ 
+                rotate: -360,
+                borderColor: portalOpen ? "hsl(280 100% 60% / 0.5)" : "hsl(280 100% 60% / 0.2)"
+              }}
+              transition={{ rotate: { duration: 15, repeat: Infinity, ease: "linear" }, borderColor: { duration: 0.5 } }}
+            />
+            <motion.div 
+              className="absolute inset-8 rounded-full border border-primary/30"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+            />
             
-            {/* Core */}
-            <div className="absolute inset-12 rounded-full bg-gradient-to-br from-black via-primary/10 to-black border border-primary/20 overflow-hidden animate-pulse-glow">
-              <div className="absolute inset-0 bg-[url('/portal-bg.png')] bg-cover bg-center opacity-50 mix-blend-screen" />
-              <div className="absolute inset-0 bg-gradient-to-t from-primary/30 via-transparent to-secondary/20" />
-              
-              {/* Inner Details */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full bg-primary/20 blur-xl animate-pulse" />
-              </div>
-            </div>
+            {/* Core / Video Container */}
+            <motion.div 
+              className="absolute inset-12 rounded-full overflow-hidden border-2 border-primary/30"
+              animate={{
+                boxShadow: portalOpen 
+                  ? "0 0 60px hsl(180 100% 50% / 0.5), 0 0 120px hsl(280 100% 60% / 0.3), inset 0 0 60px hsl(180 100% 50% / 0.2)"
+                  : "0 0 20px hsl(180 100% 50% / 0.2), inset 0 0 20px hsl(180 100% 50% / 0.1)"
+              }}
+              transition={{ duration: 0.8 }}
+            >
+              <AnimatePresence mode="wait">
+                {portalOpen ? (
+                  <motion.div
+                    key="video"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ duration: 0.5, type: "spring" }}
+                    className="absolute inset-0"
+                  >
+                    <video 
+                      src={portalVideo}
+                      autoPlay 
+                      loop 
+                      muted 
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/30" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="closed"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0, scale: 1.5 }}
+                    transition={{ duration: 0.3 }}
+                    className="absolute inset-0 bg-gradient-to-br from-black via-primary/10 to-black"
+                  >
+                    <div className="absolute inset-0 bg-[url('/portal-bg.png')] bg-cover bg-center opacity-40 mix-blend-screen" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-primary/20 via-transparent to-secondary/10" />
+                    
+                    {/* Play Button Hint */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <motion.div 
+                        className="w-16 h-16 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center"
+                        animate={{ scale: [1, 1.1, 1] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                      >
+                        <Play className="w-6 h-6 text-primary ml-1" />
+                      </motion.div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
             
             {/* Particles */}
-            <div className="absolute inset-0 animate-spin-slow" style={{ animationDuration: '12s' }}>
+            <motion.div 
+              className="absolute inset-0"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+            >
               <div className="absolute top-4 left-1/2 w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_8px_hsl(var(--primary))]" />
-            </div>
-            <div className="absolute inset-0 animate-spin-reverse" style={{ animationDuration: '18s' }}>
+            </motion.div>
+            <motion.div 
+              className="absolute inset-0"
+              animate={{ rotate: -360 }}
+              transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
+            >
               <div className="absolute bottom-8 right-1/4 w-1 h-1 bg-secondary rounded-full shadow-[0_0_6px_hsl(var(--secondary))]" />
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </div>
 
         {/* Status Text */}
         <div className="absolute bottom-16 text-center">
-          <p className="text-xs font-mono text-primary/50 tracking-[0.3em] mb-2">QUANTUM RIFT</p>
-          <p className="font-display text-lg text-white/80 tracking-wide">STABLE • AWAITING OPERATOR</p>
+          <AnimatePresence mode="wait">
+            {portalOpen ? (
+              <motion.div
+                key="open"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <p className="text-xs font-mono text-secondary/80 tracking-[0.3em] mb-2">PORTAL ACTIVE</p>
+                <p className="font-display text-lg text-white tracking-wide">VISITORS INCOMING</p>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="mt-4 text-muted-foreground hover:text-primary"
+                  onClick={handleClosePortal}
+                >
+                  Close Portal
+                </Button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="closed"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <p className="text-xs font-mono text-primary/50 tracking-[0.3em] mb-2">QUANTUM RIFT</p>
+                <p className="font-display text-lg text-white/80 tracking-wide">TAP TO OPEN PORTAL</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </main>
 
