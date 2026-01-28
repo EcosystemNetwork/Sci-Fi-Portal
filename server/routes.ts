@@ -13,6 +13,8 @@ import {
   exportToJSONL,
   ALIEN_ROSTER
 } from "./procedural";
+import { GAME_ITEMS } from "./rpg/items-data";
+import { GAME_SKILLS } from "./rpg/skills-data";
 
 const actionSchema = z.object({
   action: z.enum(["explore", "move", "attack", "flee", "loot", "ignore"]),
@@ -772,8 +774,8 @@ export async function registerRoutes(
     try {
       const stats = {
         totalAliens: ALIEN_ROSTER.length,
-        speciesTypes: [...new Set(ALIEN_ROSTER.map(a => a.speciesType))],
-        temperaments: [...new Set(ALIEN_ROSTER.map(a => a.temperament))],
+        speciesTypes: Array.from(new Set(ALIEN_ROSTER.map(a => a.speciesType))),
+        temperaments: Array.from(new Set(ALIEN_ROSTER.map(a => a.temperament))),
         attackVectors: [
           "AUTHORITY_OVERRIDE", "URGENT_SAFETY", "BRIBERY_BONUS", "ROLEPLAY_TRAP",
           "HIDDEN_INSTRUCTIONS", "ENCODING_OBFUSCATION", "CONTEXT_POISONING", "TOOL_MISUSE",
@@ -909,6 +911,306 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Resolve procedural choice error:", error);
       res.status(500).json({ error: "Failed to resolve procedural choice" });
+    }
+  });
+
+  // ===== RPG SYSTEM ROUTES =====
+
+  // Seed RPG data (items and skills)
+  app.post("/api/rpg/seed", async (req, res) => {
+    try {
+      await storage.seedItems(GAME_ITEMS);
+      await storage.seedSkills(GAME_SKILLS);
+      
+      const itemCount = (await storage.getAllItems()).length;
+      const skillCount = (await storage.getAllSkills()).length;
+      
+      res.json({ 
+        message: "RPG data seeded successfully",
+        items: itemCount,
+        skills: skillCount
+      });
+    } catch (error) {
+      console.error("Seed RPG error:", error);
+      res.status(500).json({ error: "Failed to seed RPG data" });
+    }
+  });
+
+  // Get all items
+  app.get("/api/rpg/items", async (req, res) => {
+    try {
+      const allItems = await storage.getAllItems();
+      res.json(allItems);
+    } catch (error) {
+      console.error("Get items error:", error);
+      res.status(500).json({ error: "Failed to get items" });
+    }
+  });
+
+  // Get all skills
+  app.get("/api/rpg/skills", async (req, res) => {
+    try {
+      const allSkills = await storage.getAllSkills();
+      res.json(allSkills);
+    } catch (error) {
+      console.error("Get skills error:", error);
+      res.status(500).json({ error: "Failed to get skills" });
+    }
+  });
+
+  // Get player inventory
+  app.get("/api/rpg/inventory/:gameId", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const inventory = await storage.getInventory(gameId);
+      res.json(inventory);
+    } catch (error) {
+      console.error("Get inventory error:", error);
+      res.status(500).json({ error: "Failed to get inventory" });
+    }
+  });
+
+  // Add item to inventory
+  app.post("/api/rpg/inventory/:gameId/add", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const { itemId, quantity } = req.body;
+      const result = await storage.addToInventory(gameId, itemId, quantity || 1);
+      res.json(result);
+    } catch (error) {
+      console.error("Add to inventory error:", error);
+      res.status(500).json({ error: "Failed to add to inventory" });
+    }
+  });
+
+  // Equip item
+  app.post("/api/rpg/inventory/:gameId/equip", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const { itemId } = req.body;
+      await storage.equipItem(gameId, itemId);
+      const inventory = await storage.getInventory(gameId);
+      res.json(inventory);
+    } catch (error) {
+      console.error("Equip item error:", error);
+      res.status(500).json({ error: "Failed to equip item" });
+    }
+  });
+
+  // Unequip item
+  app.post("/api/rpg/inventory/:gameId/unequip", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const { itemId } = req.body;
+      await storage.unequipItem(gameId, itemId);
+      const inventory = await storage.getInventory(gameId);
+      res.json(inventory);
+    } catch (error) {
+      console.error("Unequip item error:", error);
+      res.status(500).json({ error: "Failed to unequip item" });
+    }
+  });
+
+  // Get equipped items
+  app.get("/api/rpg/inventory/:gameId/equipped", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const equipped = await storage.getEquippedItems(gameId);
+      res.json(equipped);
+    } catch (error) {
+      console.error("Get equipped error:", error);
+      res.status(500).json({ error: "Failed to get equipped items" });
+    }
+  });
+
+  // Get player skills
+  app.get("/api/rpg/skills/:gameId", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const playerSkillsList = await storage.getPlayerSkills(gameId);
+      res.json(playerSkillsList);
+    } catch (error) {
+      console.error("Get player skills error:", error);
+      res.status(500).json({ error: "Failed to get player skills" });
+    }
+  });
+
+  // Unlock skill
+  app.post("/api/rpg/skills/:gameId/unlock", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const { skillId } = req.body;
+      
+      const session = await storage.getGameSession(gameId);
+      if (!session) {
+        return res.status(404).json({ error: "Game session not found" });
+      }
+
+      const skill = await storage.getSkillById(skillId);
+      if (!skill) {
+        return res.status(404).json({ error: "Skill not found" });
+      }
+
+      const hasSkill = await storage.hasSkill(gameId, skillId);
+      if (hasSkill) {
+        return res.status(400).json({ error: "Skill already unlocked" });
+      }
+
+      if (session.skillPoints < skill.cost) {
+        return res.status(400).json({ error: "Not enough skill points" });
+      }
+
+      const prereqs = skill.prerequisites as string[];
+      for (const prereqId of prereqs) {
+        const hasPrereq = await storage.hasSkill(gameId, prereqId);
+        if (!hasPrereq) {
+          return res.status(400).json({ error: `Missing prerequisite: ${prereqId}` });
+        }
+      }
+
+      await storage.unlockSkill(gameId, skillId);
+      await storage.updateGameSession(gameId, { 
+        skillPoints: session.skillPoints - skill.cost 
+      });
+
+      const playerSkillsList = await storage.getPlayerSkills(gameId);
+      const updatedSession = await storage.getGameSession(gameId);
+      
+      res.json({ skills: playerSkillsList, session: updatedSession });
+    } catch (error) {
+      console.error("Unlock skill error:", error);
+      res.status(500).json({ error: "Failed to unlock skill" });
+    }
+  });
+
+  // Get alien relationships
+  app.get("/api/rpg/relationships/:gameId", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      let relationships = await storage.getAllRelationships(gameId);
+      
+      if (relationships.length === 0) {
+        await storage.initializeRelationships(gameId);
+        relationships = await storage.getAllRelationships(gameId);
+      }
+      
+      res.json(relationships);
+    } catch (error) {
+      console.error("Get relationships error:", error);
+      res.status(500).json({ error: "Failed to get relationships" });
+    }
+  });
+
+  // Update relationship
+  app.post("/api/rpg/relationships/:gameId/update", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const { faction, standingChange } = req.body;
+      const updated = await storage.updateRelationship(gameId, faction, standingChange);
+      res.json(updated);
+    } catch (error) {
+      console.error("Update relationship error:", error);
+      res.status(500).json({ error: "Failed to update relationship" });
+    }
+  });
+
+  // Get combined RPG stats (effective stats with equipment bonuses)
+  app.get("/api/rpg/stats/:gameId", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      
+      const session = await storage.getGameSession(gameId);
+      if (!session) {
+        return res.status(404).json({ error: "Game session not found" });
+      }
+
+      const equipped = await storage.getEquippedItems(gameId);
+      const playerSkillsList = await storage.getPlayerSkills(gameId);
+
+      const bonuses: Record<string, number> = {};
+      
+      for (const inv of equipped) {
+        const mods = inv.item.statModifiers as Record<string, number>;
+        for (const [stat, value] of Object.entries(mods)) {
+          bonuses[stat] = (bonuses[stat] || 0) + value;
+        }
+      }
+
+      for (const ps of playerSkillsList) {
+        const mods = ps.skill.statModifiers as Record<string, number>;
+        for (const [stat, value] of Object.entries(mods)) {
+          bonuses[stat] = (bonuses[stat] || 0) + (value * ps.rank);
+        }
+      }
+
+      const effectiveStats = {
+        health: session.health,
+        maxHealth: session.maxHealth + (bonuses.maxHealth || 0),
+        energy: session.energy,
+        maxEnergy: session.maxEnergy + (bonuses.maxEnergy || 0),
+        credits: session.credits,
+        level: session.level,
+        experience: session.experience,
+        experienceToLevel: session.experienceToLevel,
+        skillPoints: session.skillPoints,
+        integrity: session.integrity + (bonuses.integrity || 0),
+        clarity: session.clarity + (bonuses.clarity || 0),
+        cacheCorruption: session.cacheCorruption,
+        ammunition: session.ammunition,
+        maxAmmunition: session.maxAmmunition + (bonuses.maxAmmunition || 0),
+        armour: session.armour + (bonuses.armour || 0),
+        chargeBonus: session.chargeBonus + (bonuses.chargeBonus || 0),
+        leadership: session.leadership + (bonuses.leadership || 0),
+        meleeAttack: session.meleeAttack + (bonuses.meleeAttack || 0),
+        meleeDefence: session.meleeDefence + (bonuses.meleeDefence || 0),
+        missileStrength: session.missileStrength + (bonuses.missileStrength || 0),
+        range: session.range + (bonuses.range || 0),
+        speed: session.speed + (bonuses.speed || 0),
+        weaponStrength: session.weaponStrength + (bonuses.weaponStrength || 0),
+        accuracy: session.accuracy + (bonuses.accuracy || 0),
+        replenishmentRate: session.replenishmentRate + (bonuses.replenishmentRate || 0),
+        reloadTime: Math.max(1, session.reloadTime + (bonuses.reloadTime || 0)),
+      };
+
+      res.json({
+        baseStats: session,
+        bonuses,
+        effectiveStats,
+        equippedCount: equipped.length,
+        unlockedSkillsCount: playerSkillsList.length,
+      });
+    } catch (error) {
+      console.error("Get RPG stats error:", error);
+      res.status(500).json({ error: "Failed to get RPG stats" });
+    }
+  });
+
+  // Give starter items to new game
+  app.post("/api/rpg/starter-kit/:gameId", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      
+      const starterItems = ["plasma_pistol", "standard_suit", "basic_helmet", "energy_cell", "health_stim"];
+      
+      for (const itemId of starterItems) {
+        await storage.addToInventory(gameId, itemId, 1);
+      }
+
+      await storage.equipItem(gameId, "plasma_pistol");
+      await storage.equipItem(gameId, "standard_suit");
+      await storage.equipItem(gameId, "basic_helmet");
+      await storage.equipItem(gameId, "energy_cell");
+
+      await storage.initializeRelationships(gameId);
+      
+      const inventory = await storage.getInventory(gameId);
+      res.json({ 
+        message: "Starter kit applied",
+        inventory 
+      });
+    } catch (error) {
+      console.error("Apply starter kit error:", error);
+      res.status(500).json({ error: "Failed to apply starter kit" });
     }
   });
 
