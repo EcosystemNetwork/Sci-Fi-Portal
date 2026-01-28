@@ -1,13 +1,29 @@
 import { GoogleGenAI } from "@google/genai";
 import { storage } from "./storage";
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY!,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
-});
+// Support both Replit AI Integrations and standard Gemini API
+const isReplit = process.env.AI_INTEGRATIONS_GEMINI_API_KEY !== undefined;
+const apiKey = isReplit 
+  ? process.env.AI_INTEGRATIONS_GEMINI_API_KEY! 
+  : process.env.GEMINI_API_KEY;
+
+// Only create AI client if we have an API key
+const ai = apiKey 
+  ? new GoogleGenAI({
+      apiKey,
+      httpOptions: isReplit 
+        ? {
+            apiVersion: "",
+            baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+          }
+        : undefined,
+    })
+  : null;
+
+// Check if AI generation is available
+export function isAIEncounterGenerationEnabled(): boolean {
+  return ai !== null;
+}
 
 export interface GeneratedEncounter {
   alienName: string;
@@ -26,6 +42,22 @@ export async function generateAlienEncounter(): Promise<GeneratedEncounter> {
   
   if (!alien) {
     throw new Error("No alien races in database. Please seed the wiki first.");
+  }
+
+  // If AI is not available, return a fallback encounter
+  if (!ai) {
+    console.log("AI not available, using fallback encounter");
+    return {
+      alienName: alien.name,
+      alienCategory: alien.category,
+      encounterType: "mysterious",
+      title: `${alien.name} Emerges`,
+      description: alien.description || `A ${alien.name} steps through the quantum portal.`,
+      dialogue: "The being regards you with ancient wisdom...",
+      giftName: "Mysterious Artifact",
+      giftDescription: "An object of unknown origin pulses with energy.",
+      videoPrompt: alien.videoPrompt || `${alien.name} alien emerging from portal with a gift`,
+    };
   }
 
   const prompt = `You are a creative sci-fi storyteller for a game called "Void Walker: Protocol". 
@@ -48,7 +80,7 @@ Respond in JSON format only (no markdown, no code blocks):
 }`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await ai!.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
     });
