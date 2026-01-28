@@ -126,3 +126,26 @@ export async function applyPortalResult(gameId: string, result: PortalResult): P
   }
   return response.json();
 }
+
+// Video Generation
+export interface VideoGenerationResult {
+  videoUrl?: string;
+  error?: string;
+  fallback?: boolean;
+}
+
+export async function generateVideo(prompt: string): Promise<VideoGenerationResult> {
+  const response = await fetch("/api/video/generate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ prompt }),
+  });
+  return response.json();
+}
+
+export async function checkVideoStatus(): Promise<{ enabled: boolean }> {
+  const response = await fetch("/api/video/status");
+  return response.json();
+}

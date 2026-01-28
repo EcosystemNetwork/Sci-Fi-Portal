@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { generateEncounter, type GeneratedEncounter } from "@/lib/api";
-import { Loader2, Gift, Sword, HelpCircle, X } from "lucide-react";
+import { generateEncounter, generateVideo, checkVideoStatus, type GeneratedEncounter } from "@/lib/api";
+import { Loader2, Gift, Sword, HelpCircle, X, Video, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import arcturianVideo from "@/assets/videos/arcturian-portal.mp4";
 import mantisVideo from "@/assets/videos/mantis-portal.mp4";
 import greyVideo from "@/assets/videos/grey-portal.mp4";
 
-const videos = [arcturianVideo, mantisVideo, greyVideo];
+const fallbackVideos = [arcturianVideo, mantisVideo, greyVideo];
 
 interface PortalProps {
   onEncounterResult?: (result: { 
@@ -22,25 +22,51 @@ interface PortalProps {
 export function Portal({ onEncounterResult }: PortalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [encounter, setEncounter] = useState<GeneratedEncounter | null>(null);
-  const [currentVideo, setCurrentVideo] = useState(videos[0]);
+  const [currentVideo, setCurrentVideo] = useState<string>(fallbackVideos[0]);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<{ type: string; amount: number; message: string } | null>(null);
+  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Opening portal...");
+
+  useEffect(() => {
+    checkVideoStatus().then(status => setVideoEnabled(status.enabled));
+  }, []);
 
   const openPortal = async () => {
     if (isOpen || isLoading) return;
     
     setIsLoading(true);
-    setCurrentVideo(videos[Math.floor(Math.random() * videos.length)]);
+    setLoadingMessage("Generating encounter...");
     
     try {
       const newEncounter = await generateEncounter();
       setEncounter(newEncounter);
+      
+      if (videoEnabled && newEncounter.videoPrompt) {
+        setLoadingMessage("Generating AI video...");
+        setIsGeneratingVideo(true);
+        
+        const videoResult = await generateVideo(newEncounter.videoPrompt);
+        
+        if (videoResult.videoUrl && !videoResult.fallback) {
+          setCurrentVideo(videoResult.videoUrl);
+        } else {
+          setCurrentVideo(fallbackVideos[Math.floor(Math.random() * fallbackVideos.length)]);
+        }
+        setIsGeneratingVideo(false);
+      } else {
+        setCurrentVideo(fallbackVideos[Math.floor(Math.random() * fallbackVideos.length)]);
+      }
+      
       setIsOpen(true);
     } catch (error) {
       console.error("Failed to generate encounter:", error);
+      setCurrentVideo(fallbackVideos[Math.floor(Math.random() * fallbackVideos.length)]);
     } finally {
       setIsLoading(false);
+      setIsGeneratingVideo(false);
     }
   };
 
@@ -126,11 +152,25 @@ export function Portal({ onEncounterResult }: PortalProps) {
               <div className="absolute inset-4 rounded-full bg-gradient-to-br from-cyan-900/40 to-purple-900/40 border-2 border-cyan-500/30 group-hover:border-cyan-400/60 transition-colors" />
               <div className="absolute inset-8 rounded-full bg-black/80 border border-cyan-500/20 flex items-center justify-center">
                 {isLoading ? (
-                  <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+                  <div className="text-center">
+                    <Loader2 className="w-10 h-10 text-cyan-400 animate-spin mx-auto mb-2" />
+                    <p className="font-mono text-xs text-cyan-400/80 max-w-[120px]">
+                      {isGeneratingVideo ? (
+                        <span className="flex items-center gap-1 justify-center">
+                          <Video className="w-3 h-3" /> AI VIDEO
+                        </span>
+                      ) : loadingMessage}
+                    </p>
+                  </div>
                 ) : (
                   <div className="text-center">
                     <div className="text-4xl mb-2">🌀</div>
                     <p className="font-mono text-xs text-cyan-400/80">TAP TO OPEN</p>
+                    {videoEnabled && (
+                      <p className="font-mono text-[10px] text-purple-400/60 mt-1 flex items-center justify-center gap-1">
+                        <Sparkles className="w-3 h-3" /> AI VIDEO
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

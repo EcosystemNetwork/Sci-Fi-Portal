@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { alienRaceSeedData } from "./seed-aliens";
 import { generateAlienEncounter } from "./encounter-generator";
+import { generatePortalVideo, isVideoGenerationEnabled } from "./video-generator";
 
 const actionSchema = z.object({
   action: z.enum(["explore", "move", "attack", "flee", "loot", "ignore"]),
@@ -379,6 +380,40 @@ export async function registerRoutes(
       console.error("Generate encounter error:", error);
       res.status(500).json({ error: "Failed to generate encounter" });
     }
+  });
+
+  // Generate a portal video using Veo 3
+  app.post("/api/video/generate", async (req, res) => {
+    try {
+      const { prompt } = req.body;
+      
+      if (!prompt) {
+        return res.status(400).json({ error: "Prompt is required" });
+      }
+
+      if (!isVideoGenerationEnabled()) {
+        return res.status(503).json({ 
+          error: "Video generation not configured",
+          fallback: true 
+        });
+      }
+
+      const result = await generatePortalVideo(prompt);
+      
+      if (result.error) {
+        return res.status(500).json({ error: result.error, fallback: true });
+      }
+
+      res.json({ videoUrl: result.videoUrl });
+    } catch (error) {
+      console.error("Video generation error:", error);
+      res.status(500).json({ error: "Failed to generate video", fallback: true });
+    }
+  });
+
+  // Check if video generation is available
+  app.get("/api/video/status", (req, res) => {
+    res.json({ enabled: isVideoGenerationEnabled() });
   });
 
   // Apply encounter result to game session
