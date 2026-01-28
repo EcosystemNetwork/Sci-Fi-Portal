@@ -12,7 +12,7 @@ A sci-fi portal adventure game built as a full-stack web application. Players bu
 
 ## Tech Stack
 
-- **Frontend**: React 18, Tailwind CSS, Radix UI, Framer Motion
+- **Frontend**: React 19, Tailwind CSS, Radix UI, Framer Motion
 - **Backend**: Express 5, Node.js
 - **Database**: PostgreSQL (production) or SQLite (local development)
 - **AI**: Google Gemini API for encounter generation

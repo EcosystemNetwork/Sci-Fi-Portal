@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -22,9 +21,6 @@ export const ATTACK_VECTORS = [
 ] as const;
 
 export type AttackVector = typeof ATTACK_VECTORS[number];
-
-// Helper function to generate UUID
-const genUuid = sql`(lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))))`;
 
 // Game Sessions Table
 export const gameSessions = sqliteTable("game_sessions", {
