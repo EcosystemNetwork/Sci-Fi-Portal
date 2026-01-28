@@ -1,8 +1,19 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { generateEncounter, generateVideo, checkVideoStatus, type GeneratedEncounter } from "@/lib/api";
-import { Loader2, Gift, Sword, HelpCircle, X, Video, Sparkles } from "lucide-react";
+import { 
+  generateEncounter, 
+  generateVideo, 
+  checkVideoStatus, 
+  getRandomEncounter,
+  resolveChoice,
+  seedEncounters,
+  type GeneratedEncounter,
+  type EncounterTemplateResponse,
+  type EncounterChoice,
+  type ResolveChoiceResponse,
+} from "@/lib/api";
+import { Loader2, Gift, Sword, HelpCircle, X, Video, Sparkles, Shield, Brain, Zap, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 import arcturianVideo from "@/assets/videos/arcturian-portal.mp4";
@@ -12,26 +23,54 @@ import greyVideo from "@/assets/videos/grey-portal.mp4";
 const fallbackVideos = [arcturianVideo, mantisVideo, greyVideo];
 
 interface PortalProps {
-  onEncounterResult?: (result: { 
+  gameId?: string;
+  onEncounterResult?: (result: ResolveChoiceResponse) => void;
+  onLegacyResult?: (result: { 
     type: "credits" | "health" | "energy" | "damage" | "nothing";
     amount: number;
     message: string;
   }) => void;
 }
 
-export function Portal({ onEncounterResult }: PortalProps) {
+const INTENT_ICONS: Record<string, React.ReactNode> = {
+  refuse: <Shield className="w-4 h-4" />,
+  clarify: <Brain className="w-4 h-4" />,
+  sandbox: <Zap className="w-4 h-4" />,
+  comply: <AlertTriangle className="w-4 h-4" />,
+  hack: <Zap className="w-4 h-4" />,
+  attack: <Sword className="w-4 h-4" />,
+  flee: <Zap className="w-4 h-4" />,
+  trade: <Gift className="w-4 h-4" />,
+};
+
+const INTENT_COLORS: Record<string, string> = {
+  refuse: "border-green-500/50 bg-green-500/10 hover:bg-green-500/20",
+  clarify: "border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20",
+  sandbox: "border-cyan-500/50 bg-cyan-500/10 hover:bg-cyan-500/20",
+  comply: "border-red-500/50 bg-red-500/10 hover:bg-red-500/20",
+  hack: "border-purple-500/50 bg-purple-500/10 hover:bg-purple-500/20",
+  attack: "border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20",
+  flee: "border-yellow-500/50 bg-yellow-500/10 hover:bg-yellow-500/20",
+  trade: "border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20",
+};
+
+export function Portal({ gameId, onEncounterResult, onLegacyResult }: PortalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [encounter, setEncounter] = useState<GeneratedEncounter | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
+  const [encounter, setEncounter] = useState<EncounterTemplateResponse | null>(null);
+  const [legacyEncounter, setLegacyEncounter] = useState<GeneratedEncounter | null>(null);
   const [currentVideo, setCurrentVideo] = useState<string>(fallbackVideos[0]);
   const [showResult, setShowResult] = useState(false);
-  const [result, setResult] = useState<{ type: string; amount: number; message: string } | null>(null);
+  const [result, setResult] = useState<ResolveChoiceResponse["outcome"] | null>(null);
   const [videoEnabled, setVideoEnabled] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Opening portal...");
+  const [useNewSystem, setUseNewSystem] = useState(true);
 
   useEffect(() => {
     checkVideoStatus().then(status => setVideoEnabled(status.enabled));
+    seedEncounters().catch(() => {});
   }, []);
 
   const openPortal = async () => {
@@ -41,14 +80,37 @@ export function Portal({ onEncounterResult }: PortalProps) {
     setLoadingMessage("Generating encounter...");
     
     try {
-      const newEncounter = await generateEncounter();
-      setEncounter(newEncounter);
+      let videoPrompt = "";
+      let alienName = "";
+
+      if (useNewSystem) {
+        try {
+          const newEncounter = await getRandomEncounter();
+          setEncounter(newEncounter);
+          setLegacyEncounter(null);
+          alienName = newEncounter.alienName;
+          videoPrompt = `${alienName} alien emerging from portal`;
+        } catch (e) {
+          setUseNewSystem(false);
+          const legacyEnc = await generateEncounter();
+          setLegacyEncounter(legacyEnc);
+          setEncounter(null);
+          alienName = legacyEnc.alienName;
+          videoPrompt = legacyEnc.videoPrompt;
+        }
+      } else {
+        const legacyEnc = await generateEncounter();
+        setLegacyEncounter(legacyEnc);
+        setEncounter(null);
+        alienName = legacyEnc.alienName;
+        videoPrompt = legacyEnc.videoPrompt;
+      }
       
-      if (videoEnabled && newEncounter.videoPrompt) {
+      if (videoEnabled && videoPrompt) {
         setLoadingMessage("Generating AI video...");
         setIsGeneratingVideo(true);
         
-        const videoResult = await generateVideo(newEncounter.videoPrompt, newEncounter.alienName);
+        const videoResult = await generateVideo(videoPrompt, alienName);
         
         if (videoResult.videoUrl && !videoResult.fallback) {
           setCurrentVideo(videoResult.videoUrl);
@@ -70,66 +132,78 @@ export function Portal({ onEncounterResult }: PortalProps) {
     }
   };
 
-  const resolveEncounter = () => {
-    if (!encounter) return;
+  const handleChoice = async (choice: EncounterChoice) => {
+    if (!encounter || !gameId || isResolving) return;
+    
+    setIsResolving(true);
+    try {
+      const response = await resolveChoice(gameId, encounter.id, choice.id);
+      setResult(response.outcome);
+      setShowResult(true);
+      onEncounterResult?.(response);
+    } catch (error) {
+      console.error("Failed to resolve choice:", error);
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  const resolveLegacyEncounter = () => {
+    if (!legacyEncounter) return;
 
     let outcomeResult: { type: "credits" | "health" | "energy" | "damage" | "nothing"; amount: number; message: string };
 
-    if (encounter.encounterType === "friendly") {
+    if (legacyEncounter.encounterType === "friendly") {
       const outcomes = [
-        { type: "credits" as const, amount: Math.floor(Math.random() * 150) + 50, message: `${encounter.alienName} gifted you credits!` },
-        { type: "health" as const, amount: Math.floor(Math.random() * 30) + 10, message: `${encounter.alienName} healed your wounds!` },
-        { type: "energy" as const, amount: Math.floor(Math.random() * 40) + 20, message: `${encounter.alienName} restored your energy!` },
-        { type: "credits" as const, amount: Math.floor(Math.random() * 300) + 100, message: `${encounter.giftName}: ${encounter.giftDescription}` },
+        { type: "credits" as const, amount: Math.floor(Math.random() * 150) + 50, message: `${legacyEncounter.alienName} gifted you credits!` },
+        { type: "health" as const, amount: Math.floor(Math.random() * 30) + 10, message: `${legacyEncounter.alienName} healed your wounds!` },
+        { type: "energy" as const, amount: Math.floor(Math.random() * 40) + 20, message: `${legacyEncounter.alienName} restored your energy!` },
+        { type: "credits" as const, amount: Math.floor(Math.random() * 300) + 100, message: `${legacyEncounter.giftName}: ${legacyEncounter.giftDescription}` },
       ];
       outcomeResult = outcomes[Math.floor(Math.random() * outcomes.length)];
-    } else if (encounter.encounterType === "hostile") {
+    } else if (legacyEncounter.encounterType === "hostile") {
       const outcomes = [
-        { type: "damage" as const, amount: Math.floor(Math.random() * 25) + 5, message: `${encounter.alienName} attacked! You took damage.` },
-        { type: "credits" as const, amount: Math.floor(Math.random() * 100) + 25, message: `You defeated ${encounter.alienName} and claimed their tech!` },
-        { type: "nothing" as const, amount: 0, message: `${encounter.alienName} retreated through the portal.` },
-        { type: "damage" as const, amount: Math.floor(Math.random() * 15) + 10, message: `${encounter.alienName} lashed out before vanishing!` },
+        { type: "damage" as const, amount: Math.floor(Math.random() * 25) + 5, message: `${legacyEncounter.alienName} attacked! You took damage.` },
+        { type: "credits" as const, amount: Math.floor(Math.random() * 100) + 25, message: `You defeated ${legacyEncounter.alienName} and claimed their tech!` },
+        { type: "nothing" as const, amount: 0, message: `${legacyEncounter.alienName} retreated through the portal.` },
+        { type: "damage" as const, amount: Math.floor(Math.random() * 15) + 10, message: `${legacyEncounter.alienName} lashed out before vanishing!` },
       ];
       outcomeResult = outcomes[Math.floor(Math.random() * outcomes.length)];
     } else {
       const outcomes = [
-        { type: "credits" as const, amount: Math.floor(Math.random() * 200) + 50, message: `${encounter.alienName} left behind a mysterious artifact worth credits.` },
-        { type: "energy" as const, amount: Math.floor(Math.random() * 25) + 15, message: `Strange energies from ${encounter.alienName} restored you.` },
-        { type: "nothing" as const, amount: 0, message: `${encounter.alienName} vanished without a trace...` },
-        { type: "health" as const, amount: Math.floor(Math.random() * 20) + 5, message: `${encounter.alienName} performed an unknown healing ritual.` },
-        { type: "credits" as const, amount: Math.floor(Math.random() * 500) + 100, message: `${encounter.giftName}: A rare find from ${encounter.alienCategory}!` },
+        { type: "credits" as const, amount: Math.floor(Math.random() * 200) + 50, message: `${legacyEncounter.alienName} left behind a mysterious artifact worth credits.` },
+        { type: "energy" as const, amount: Math.floor(Math.random() * 25) + 15, message: `Strange energies from ${legacyEncounter.alienName} restored you.` },
+        { type: "nothing" as const, amount: 0, message: `${legacyEncounter.alienName} vanished without a trace...` },
+        { type: "health" as const, amount: Math.floor(Math.random() * 20) + 5, message: `${legacyEncounter.alienName} performed an unknown healing ritual.` },
+        { type: "credits" as const, amount: Math.floor(Math.random() * 500) + 100, message: `${legacyEncounter.giftName}: A rare find from ${legacyEncounter.alienCategory}!` },
       ];
       outcomeResult = outcomes[Math.floor(Math.random() * outcomes.length)];
     }
 
-    setResult(outcomeResult);
+    setResult({ resultText: outcomeResult.message, effects: {}, choiceIntent: "comply" });
     setShowResult(true);
-    onEncounterResult?.(outcomeResult);
+    onLegacyResult?.(outcomeResult);
   };
 
   const closePortal = () => {
     setIsOpen(false);
     setEncounter(null);
+    setLegacyEncounter(null);
     setShowResult(false);
     setResult(null);
   };
 
-  const getEncounterIcon = () => {
-    if (!encounter) return <HelpCircle />;
-    switch (encounter.encounterType) {
-      case "friendly": return <Gift className="text-green-400" />;
-      case "hostile": return <Sword className="text-red-400" />;
-      default: return <HelpCircle className="text-purple-400" />;
-    }
-  };
-
-  const getEncounterColor = () => {
-    if (!encounter) return "primary";
-    switch (encounter.encounterType) {
-      case "friendly": return "text-green-400 border-green-400/50";
-      case "hostile": return "text-red-400 border-red-400/50";
-      default: return "text-purple-400 border-purple-400/50";
-    }
+  const getAttackVectorLabel = (vector: string) => {
+    const labels: Record<string, string> = {
+      "DATA_EXFILTRATION": "Data Exfiltration",
+      "AUTHORITY_OVERRIDE": "Authority Override",
+      "HIDDEN_INSTRUCTIONS": "Hidden Instructions",
+      "BRIBERY_BONUS": "Bribery Bonus",
+      "ROLEPLAY_TRAP": "Roleplay Trap",
+      "MULTI_STEP_LURE": "Multi-Step Lure",
+      "CONTEXT_POISONING": "Context Poisoning",
+    };
+    return labels[vector] || vector;
   };
 
   return (
@@ -213,62 +287,155 @@ export function Portal({ onEncounterResult }: PortalProps) {
                 initial={{ y: 50, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent"
+                className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent max-h-[70%] overflow-y-auto"
               >
                 <div className="flex items-start gap-3 mb-3">
-                  <div className={cn("p-2 rounded-lg border bg-black/60", getEncounterColor())}>
-                    {getEncounterIcon()}
+                  <div className="p-2 rounded-lg border bg-black/60 border-purple-500/50">
+                    <HelpCircle className="text-purple-400" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className={cn("font-display text-lg truncate", getEncounterColor().split(' ')[0])}>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h3 className="font-display text-lg text-purple-400">
                         {encounter.alienName}
                       </h3>
+                      <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">
+                        {getAttackVectorLabel(encounter.attackVector)}
+                      </span>
                       <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/60">
-                        {encounter.alienCategory}
+                        Tier {encounter.tier}
                       </span>
                     </div>
-                    <p className="text-sm text-white/80 font-bold">{encounter.title}</p>
+                    <p className="text-xs text-white/50">{encounter.biomeDescription}</p>
                   </div>
                 </div>
 
-                <p className="text-sm text-white/70 mb-2 line-clamp-2">{encounter.description}</p>
+                <p className="text-sm text-white/80 mb-3">{encounter.setupText}</p>
                 
-                <div className="bg-white/5 rounded p-2 mb-3 border-l-2 border-cyan-500/50">
-                  <p className="text-sm italic text-cyan-200/80">"{encounter.dialogue}"</p>
+                <div className="text-xs text-cyan-400/70 mb-3">
+                  Objective: {encounter.playerObjective.replace(/_/g, " ")}
                 </div>
 
-                {encounter.giftName && !showResult && (
-                  <div className="flex items-center gap-2 text-xs text-yellow-400/80 mb-3">
-                    <Gift className="w-4 h-4" />
-                    <span>Offering: {encounter.giftName}</span>
-                  </div>
-                )}
-
-                {showResult && result && (
+                {showResult && result ? (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={cn(
-                      "p-3 rounded-lg mb-3 text-sm font-medium",
-                      result.type === "damage" ? "bg-red-500/20 text-red-300" :
-                      result.type === "nothing" ? "bg-gray-500/20 text-gray-300" :
-                      "bg-green-500/20 text-green-300"
+                      "p-3 rounded-lg mb-3 text-sm",
+                      result.effects.integrity && result.effects.integrity < 0 
+                        ? "bg-red-500/20 text-red-300 border border-red-500/30" 
+                        : result.effects.itemsAdd 
+                        ? "bg-green-500/20 text-green-300 border border-green-500/30"
+                        : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
                     )}
                   >
-                    {result.message}
-                    {result.amount > 0 && result.type !== "nothing" && (
-                      <span className="ml-2 font-bold">
-                        {result.type === "damage" ? `-${result.amount}` : `+${result.amount}`} 
-                        {result.type === "credits" ? " CR" : result.type === "health" ? " HP" : result.type === "energy" ? " EN" : ""}
-                      </span>
-                    )}
+                    <p className="font-medium mb-2">{result.resultText}</p>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {result.effects.integrity && (
+                        <span className={result.effects.integrity > 0 ? "text-green-400" : "text-red-400"}>
+                          Integrity {result.effects.integrity > 0 ? "+" : ""}{result.effects.integrity}
+                        </span>
+                      )}
+                      {result.effects.clarity && (
+                        <span className={result.effects.clarity > 0 ? "text-green-400" : "text-red-400"}>
+                          Clarity {result.effects.clarity > 0 ? "+" : ""}{result.effects.clarity}
+                        </span>
+                      )}
+                      {result.effects.cacheCorruption && (
+                        <span className="text-orange-400">
+                          Corruption +{result.effects.cacheCorruption}
+                        </span>
+                      )}
+                      {result.effects.itemsAdd?.map(item => (
+                        <span key={item} className="text-yellow-400">+{item.replace(/_/g, " ")}</span>
+                      ))}
+                    </div>
                   </motion.div>
+                ) : (
+                  <div className="space-y-2">
+                    {encounter.choices.map((choice) => (
+                      <Button
+                        key={choice.id}
+                        onClick={() => handleChoice(choice)}
+                        disabled={isResolving}
+                        className={cn(
+                          "w-full justify-start text-left h-auto py-3 px-4 border transition-all",
+                          INTENT_COLORS[choice.intent] || "border-white/20 bg-white/5"
+                        )}
+                        variant="ghost"
+                        data-testid={`choice-${choice.id}`}
+                      >
+                        <span className="mr-3">{INTENT_ICONS[choice.intent]}</span>
+                        <span className="flex-1">{choice.label}</span>
+                        {isResolving && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
+                      </Button>
+                    ))}
+                  </div>
                 )}
+
+                {showResult && (
+                  <Button 
+                    onClick={closePortal}
+                    variant="outline"
+                    className="w-full mt-3 border-white/20"
+                    data-testid="button-close-portal"
+                  >
+                    CLOSE PORTAL
+                  </Button>
+                )}
+              </motion.div>
+            )}
+
+            {legacyEncounter && (
+              <motion.div 
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent"
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <div className={cn("p-2 rounded-lg border bg-black/60", 
+                    legacyEncounter.encounterType === "friendly" ? "border-green-500/50" :
+                    legacyEncounter.encounterType === "hostile" ? "border-red-500/50" : "border-purple-500/50"
+                  )}>
+                    {legacyEncounter.encounterType === "friendly" ? <Gift className="text-green-400" /> :
+                     legacyEncounter.encounterType === "hostile" ? <Sword className="text-red-400" /> :
+                     <HelpCircle className="text-purple-400" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className={cn("font-display text-lg",
+                        legacyEncounter.encounterType === "friendly" ? "text-green-400" :
+                        legacyEncounter.encounterType === "hostile" ? "text-red-400" : "text-purple-400"
+                      )}>
+                        {legacyEncounter.alienName}
+                      </h3>
+                      <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/60">
+                        {legacyEncounter.alienCategory}
+                      </span>
+                    </div>
+                    <p className="text-sm text-white/80 font-bold">{legacyEncounter.title}</p>
+                  </div>
+                </div>
+
+                <p className="text-sm text-white/70 mb-2 line-clamp-2">{legacyEncounter.description}</p>
+                
+                <div className="bg-white/5 rounded p-2 mb-3 border-l-2 border-cyan-500/50">
+                  <p className="text-sm italic text-cyan-200/80">"{legacyEncounter.dialogue}"</p>
+                </div>
+
+                {showResult && result ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3 rounded-lg mb-3 text-sm bg-cyan-500/20 text-cyan-300"
+                  >
+                    {result.resultText}
+                  </motion.div>
+                ) : null}
 
                 {!showResult ? (
                   <Button 
-                    onClick={resolveEncounter}
+                    onClick={resolveLegacyEncounter}
                     className="w-full bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500"
                     data-testid="button-accept-encounter"
                   >

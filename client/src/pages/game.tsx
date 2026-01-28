@@ -7,7 +7,7 @@ import { EventLog } from "@/components/game/EventLog";
 import { Controls } from "@/components/game/Controls";
 import { ActionDisplay } from "@/components/game/ActionDisplay";
 import { Portal } from "@/components/game/Portal";
-import { getActiveGame, performAction, applyPortalResult, type PortalResult } from "@/lib/api";
+import { getActiveGame, performAction, applyPortalResult, type PortalResult, type ResolveChoiceResponse } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
@@ -56,6 +56,14 @@ export default function Game() {
   const handlePortalResult = (result: PortalResult) => {
     if (!gameState?.session) return;
     portalMutation.mutate({ gameId: gameState.session.id, result });
+  };
+
+  const handleNewEncounterResult = (response: ResolveChoiceResponse) => {
+    queryClient.setQueryData(["game"], {
+      session: response.session,
+      logs: response.logs,
+      encounter: null,
+    });
   };
 
   if (isLoading) {
@@ -119,7 +127,11 @@ export default function Game() {
               energy={session.energy} 
               maxEnergy={session.maxEnergy} 
               credits={session.credits} 
-              level={session.level} 
+              level={session.level}
+              integrity={(session as any).integrity}
+              clarity={(session as any).clarity}
+              cacheCorruption={(session as any).cacheCorruption}
+              inventory={(session as any).inventory as string[] || []}
             />
           </div>
           <div className="flex-1 min-h-0">
@@ -133,7 +145,11 @@ export default function Game() {
             {displayEncounter ? (
               <ActionDisplay encounter={displayEncounter} />
             ) : (
-              <Portal onEncounterResult={handlePortalResult} />
+              <Portal 
+                gameId={session.id}
+                onEncounterResult={handleNewEncounterResult} 
+                onLegacyResult={handlePortalResult}
+              />
             )}
           </div>
           <div className="flex-none">

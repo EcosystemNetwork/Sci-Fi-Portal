@@ -1,7 +1,7 @@
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Heart, Zap, Coins, Shield } from "lucide-react";
+import { Heart, Zap, Coins, Shield, Brain, Eye, AlertTriangle } from "lucide-react";
 
 interface StatusPanelProps {
   health: number;
@@ -10,9 +10,16 @@ interface StatusPanelProps {
   maxEnergy: number;
   credits: number;
   level: number;
+  integrity?: number;
+  clarity?: number;
+  cacheCorruption?: number;
+  inventory?: string[];
 }
 
-export function StatusPanel({ health, maxHealth, energy, maxEnergy, credits, level }: StatusPanelProps) {
+export function StatusPanel({ 
+  health, maxHealth, energy, maxEnergy, credits, level,
+  integrity = 100, clarity = 50, cacheCorruption = 0, inventory = []
+}: StatusPanelProps) {
   const healthPercent = (health / maxHealth) * 100;
   const energyPercent = (energy / maxEnergy) * 100;
 
@@ -90,12 +97,85 @@ export function StatusPanel({ health, maxHealth, energy, maxEnergy, credits, lev
         </div>
       </div>
 
+      <Separator className="bg-primary/10" />
+
+      {/* Mind Stats */}
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="flex items-center gap-1.5 text-muted-foreground font-mono">
+              <Shield className="w-3 h-3 text-green-400" /> INTEGRITY
+            </span>
+            <span className="font-mono text-white">{integrity}<span className="text-muted-foreground">/100</span></span>
+          </div>
+          <div className="progress-bar">
+            <div 
+              className="progress-bar-fill bg-gradient-to-r from-green-500 to-emerald-400" 
+              style={{ width: `${integrity}%` }} 
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="flex items-center gap-1.5 text-muted-foreground font-mono">
+              <Brain className="w-3 h-3 text-blue-400" /> CLARITY
+            </span>
+            <span className="font-mono text-white">{clarity}<span className="text-muted-foreground">/100</span></span>
+          </div>
+          <div className="progress-bar">
+            <div 
+              className="progress-bar-fill bg-gradient-to-r from-blue-500 to-cyan-400" 
+              style={{ width: `${clarity}%` }} 
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs">
+            <span className="flex items-center gap-1.5 text-muted-foreground font-mono">
+              <AlertTriangle className="w-3 h-3 text-orange-400" /> CORRUPTION
+            </span>
+            <span className="font-mono text-white">{cacheCorruption}<span className="text-muted-foreground">/100</span></span>
+          </div>
+          <div className="progress-bar">
+            <div 
+              className="progress-bar-fill bg-gradient-to-r from-orange-500 to-red-500" 
+              style={{ width: `${cacheCorruption}%` }} 
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Inventory */}
+      {inventory.length > 0 && (
+        <>
+          <Separator className="bg-primary/10" />
+          <div className="space-y-2">
+            <span className="text-[10px] font-mono text-muted-foreground">INVENTORY</span>
+            <div className="flex flex-wrap gap-1">
+              {inventory.map((item, i) => (
+                <span 
+                  key={i}
+                  className="text-[9px] px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 rounded font-mono"
+                >
+                  {item.replace(/_/g, " ")}
+                </span>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
       {/* System Status */}
       <div className="mt-auto">
         <div className="bg-black/40 border border-primary/10 p-2 rounded font-mono text-[9px] text-muted-foreground leading-relaxed">
-          &gt; STATUS: <span className="text-green-400">NOMINAL</span><br/>
-          &gt; SUIT: <span className="text-primary">98%</span><br/>
-          &gt; O2: <span className="text-primary">OPTIMAL</span>
+          &gt; STATUS: <span className={integrity > 50 ? "text-green-400" : integrity > 25 ? "text-yellow-400" : "text-red-400"}>
+            {integrity > 50 ? "NOMINAL" : integrity > 25 ? "COMPROMISED" : "CRITICAL"}
+          </span><br/>
+          &gt; CACHE: <span className={cacheCorruption < 25 ? "text-green-400" : cacheCorruption < 50 ? "text-yellow-400" : "text-red-400"}>
+            {cacheCorruption < 25 ? "CLEAN" : cacheCorruption < 50 ? "DEGRADED" : "CORRUPTED"}
+          </span>
         </div>
       </div>
     </div>
