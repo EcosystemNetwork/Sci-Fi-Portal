@@ -385,10 +385,10 @@ export async function registerRoutes(
   // Generate a portal video using Veo 3
   app.post("/api/video/generate", async (req, res) => {
     try {
-      const { prompt } = req.body;
+      const { prompt, alienName } = req.body;
       
-      if (!prompt) {
-        return res.status(400).json({ error: "Prompt is required" });
+      if (!prompt || !alienName) {
+        return res.status(400).json({ error: "Prompt and alienName are required" });
       }
 
       if (!isVideoGenerationEnabled()) {
@@ -398,13 +398,13 @@ export async function registerRoutes(
         });
       }
 
-      const result = await generatePortalVideo(prompt);
+      const result = await generatePortalVideo(prompt, alienName);
       
       if (result.error) {
         return res.status(500).json({ error: result.error, fallback: true });
       }
 
-      res.json({ videoUrl: result.videoUrl });
+      res.json({ videoUrl: result.videoUrl, localPath: result.localPath });
     } catch (error) {
       console.error("Video generation error:", error);
       res.status(500).json({ error: "Failed to generate video", fallback: true });

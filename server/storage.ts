@@ -10,10 +10,13 @@ import {
   type InsertEventLog,
   type AlienRace,
   type InsertAlienRace,
+  type GeneratedVideo,
+  type InsertGeneratedVideo,
   gameSessions,
   encounters,
   eventLogs,
   alienRaces,
+  generatedVideos,
 } from "@shared/schema";
 
 const client = new pg.Client({
@@ -46,6 +49,11 @@ export interface IStorage {
   getAlienRacesByCategory(category: string): Promise<AlienRace[]>;
   getRandomAlienRace(): Promise<AlienRace | undefined>;
   getAlienRaceCount(): Promise<number>;
+
+  // Generated Videos
+  createGeneratedVideo(video: InsertGeneratedVideo): Promise<GeneratedVideo>;
+  getAllGeneratedVideos(): Promise<GeneratedVideo[]>;
+  getVideoByAlienName(alienName: string): Promise<GeneratedVideo | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -136,6 +144,21 @@ export class DbStorage implements IStorage {
   async getAlienRaceCount(): Promise<number> {
     const allRaces = await db.select().from(alienRaces);
     return allRaces.length;
+  }
+
+  // Generated Videos
+  async createGeneratedVideo(video: InsertGeneratedVideo): Promise<GeneratedVideo> {
+    const [newVideo] = await db.insert(generatedVideos).values(video).returning();
+    return newVideo;
+  }
+
+  async getAllGeneratedVideos(): Promise<GeneratedVideo[]> {
+    return await db.select().from(generatedVideos).orderBy(desc(generatedVideos.createdAt));
+  }
+
+  async getVideoByAlienName(alienName: string): Promise<GeneratedVideo | undefined> {
+    const [video] = await db.select().from(generatedVideos).where(eq(generatedVideos.alienName, alienName));
+    return video;
   }
 }
 

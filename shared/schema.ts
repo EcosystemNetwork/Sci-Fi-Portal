@@ -82,3 +82,20 @@ export const insertAlienRaceSchema = createInsertSchema(alienRaces).omit({
 
 export type InsertAlienRace = z.infer<typeof insertAlienRaceSchema>;
 export type AlienRace = typeof alienRaces.$inferSelect;
+
+// Generated Videos Table
+export const generatedVideos = pgTable("generated_videos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  alienName: text("alien_name").notNull(),
+  prompt: text("prompt").notNull(),
+  localPath: text("local_path").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertGeneratedVideoSchema = createInsertSchema(generatedVideos).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertGeneratedVideo = z.infer<typeof insertGeneratedVideoSchema>;
+export type GeneratedVideo = typeof generatedVideos.$inferSelect;

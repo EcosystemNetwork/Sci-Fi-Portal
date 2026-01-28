@@ -48,7 +48,7 @@ export function Portal({ onEncounterResult }: PortalProps) {
         setLoadingMessage("Generating AI video...");
         setIsGeneratingVideo(true);
         
-        const videoResult = await generateVideo(newEncounter.videoPrompt);
+        const videoResult = await generateVideo(newEncounter.videoPrompt, newEncounter.alienName);
         
         if (videoResult.videoUrl && !videoResult.fallback) {
           setCurrentVideo(videoResult.videoUrl);

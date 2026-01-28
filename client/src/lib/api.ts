@@ -130,17 +130,18 @@ export async function applyPortalResult(gameId: string, result: PortalResult): P
 // Video Generation
 export interface VideoGenerationResult {
   videoUrl?: string;
+  localPath?: string;
   error?: string;
   fallback?: boolean;
 }
 
-export async function generateVideo(prompt: string): Promise<VideoGenerationResult> {
+export async function generateVideo(prompt: string, alienName: string): Promise<VideoGenerationResult> {
   const response = await fetch("/api/video/generate", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, alienName }),
   });
   return response.json();
 }
