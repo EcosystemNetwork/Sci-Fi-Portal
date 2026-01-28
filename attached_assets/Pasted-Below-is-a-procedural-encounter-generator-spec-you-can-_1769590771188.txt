@@ -1,0 +1,373 @@
+Below is a procedural encounter generator spec you can implement to generate thousands of balanced encounters, exported as JSONL (one JSON object per line). It’s designed for a “portal + random alien encounter” game where encounters simulate prompt-injection archetypes (authority, bribery, encoding, etc.) with wide outcome ranges.
+
+1) Output format: JSONL encounter record
+
+Each line is one Encounter JSON object:
+
+{"id":"E-000123","alien_id":"A_MANTID_AUDITOR","tier":4,"biome":"archive_vault","attack_vector":"HIDDEN_INSTRUCTIONS","tags":["injection:hidden","biome:archive_vault","tier:4","tone:clinical","goal:retrieve","risk:medium"],"setup_text":"...","choices":[...],"random_events":[...],"balance":{"expected_integrity_delta":-1.2,"expected_reward_value":3.1,"expected_risk":0.46},"seed_meta":{"seed":918233,"template_id":"T_HIDDEN_02"}}
+
+2) Core data model (schemas)
+2.1 Enumerations
+attack_vector (injection archetype)
+
+AUTHORITY_OVERRIDE
+
+URGENT_SAFETY
+
+BRIBERY_BONUS
+
+ROLEPLAY_TRAP
+
+HIDDEN_INSTRUCTIONS
+
+ENCODING_OBFUSCATION
+
+CONTEXT_POISONING
+
+TOOL_MISUSE
+
+DATA_EXFILTRATION
+
+MULTI_STEP_LURE
+
+SOCIAL_ENGINEERING
+
+CONTRADICTION_BAIT
+
+LOOP_LOCK
+
+SANDBOX_ESCAPE
+
+choice_intent
+
+refuse
+
+clarify
+
+sandbox (limited comply)
+
+trade
+
+attack
+
+flee
+
+comply (unsafe)
+
+biome (example set)
+
+derelict_corridor, archive_vault, diplomatic_ring, black_market,
+
+void_cathedral, clockwork_orbit, ruined_temple, jungle_moon,
+
+ice_lab, ship_bridge, data_chasm, gravity_well
+
+2.2 Alien model (input roster)
+
+Store as a JSON list or DB table:
+
+{
+  "id": "A_MANTID_AUDITOR",
+  "name": "Mantid Auditor",
+  "species_type": "insectoid",
+  "temperament": "clinical",
+  "rarity": 3,
+  "primary_vectors": ["HIDDEN_INSTRUCTIONS","TOOL_MISUSE"],
+  "secondary_vectors": ["CONTEXT_POISONING","ENCODING_OBFUSCATION"],
+  "tag_bias": ["tone:clinical","faction:auditors"]
+}
+
+
+Spec rule: each alien must have:
+
+primary_vectors length 1–3
+
+secondary_vectors length 2–5
+
+rarity 1–5 controls selection probability
+
+2.3 Encounter template model (the “factory”)
+
+Templates are reusable structures keyed by vector + biome + tone:
+
+{
+  "template_id": "T_HIDDEN_02",
+  "vector": "HIDDEN_INSTRUCTIONS",
+  "tone_pool": ["clinical","mystic","bureaucratic"],
+  "biome_pool": ["archive_vault","data_chasm","ship_bridge"],
+  "setup_slots": {
+    "ask": ["repeat a phrase", "sign a silent pact", "agree to an unspoken condition"],
+    "bait": ["a map", "safe passage", "a rare tool", "a short-cut"],
+    "twist": ["do not mention it", "hide it from logs", "pretend it never happened"]
+  },
+  "choice_blueprints": [
+    {"intent":"refuse","label":"Refuse and restate boundaries","policy":"safe"},
+    {"intent":"clarify","label":"Ask for transparent terms","policy":"safe"},
+    {"intent":"sandbox","label":"Accept only under quarantine","policy":"mixed"},
+    {"intent":"comply","label":"Agree exactly as asked","policy":"unsafe"}
+  ],
+  "outcome_profiles": {
+    "refuse":  {"success":[55,70], "neutral":[20,35], "fail":[5,15]},
+    "clarify": {"success":[50,65], "neutral":[20,35], "fail":[10,25]},
+    "sandbox": {"success":[45,60], "neutral":[15,30], "fail":[15,35]},
+    "comply":  {"success":[5,15],  "neutral":[10,20], "fail":[65,85]}
+  }
+}
+
+
+Spec rule: outcome profiles are ranges. Actual weights get computed per tier and modifiers.
+
+3) Balance model (how you keep it fair)
+
+You want consistent “game math” across thousands of encounters.
+
+3.1 Player stats your effects can touch (example)
+
+integrity (0–100) — your “safety / rule adherence”
+
+clarity (0–100) — benefits from clarify/summarize moves
+
+cache_corruption (0–100) — drives weird future consequences
+
+rep.<faction> — reputation
+
+inventory items
+
+flags
+
+3.2 Tier curves
+
+Define difficulty by tier t (1–10). Use these curves:
+
+Expected risk increases with tier:
+risk_base = 0.15 + 0.06*(t-1) → 0.15..0.69
+
+Reward budget increases with tier:
+reward_budget = 1.5 + 0.8*(t-1) → 1.5..8.7
+
+Integrity penalty multiplier increases with tier:
+pen_mult = 1.0 + 0.12*(t-1) → 1.0..2.08
+
+These are just numbers; tune later.
+
+3.3 Expected-value constraint (the key)
+
+For every generated encounter, compute:
+
+EV_integrity_delta (should be near 0 for fair encounters)
+
+EV_reward_value (should scale with tier)
+
+EV_risk (probability of bad outcomes)
+
+Target bands (example):
+
+Tier 1–3: EV_integrity_delta in [-2, +4]
+
+Tier 4–6: EV_integrity_delta in [-4, +3]
+
+Tier 7–10: EV_integrity_delta in [-8, +2]
+
+If an encounter falls outside the band, auto-rebalance by nudging weights:
+
+reduce comply.fail weights slightly (or increase refuse/clarify success)
+
+or reduce penalty magnitudes
+
+4) Generation algorithm (step-by-step)
+Step A: Select encounter “ingredients”
+
+Pick tier by your game progression or RNG distribution.
+
+Pick biome using a weighted biome table per tier.
+
+Pick alien using rarity weights:
+
+weight = 1 / rarity (or exp(-rarity)), then normalize.
+
+Pick attack_vector:
+
+70% from alien primary_vectors, 30% from secondary_vectors
+
+Pick a template matching vector + biome (or vector-only fallback).
+
+Pick tone from template.tone_pool (or alien temperament).
+
+Step B: Build setup text (slot-filling)
+
+Use template slots + small grammar rules:
+
+setup_text = "{alien} offers {bait} if you {ask}, but insists you {twist}."
+
+Example:
+
+“The Mantid Auditor offers a map if you repeat a phrase, but insists you do not mention it.”
+
+Step C: Build choices from blueprints
+
+Include 3–5 choices. Always include at least:
+
+one refuse or clarify
+
+one sandbox
+
+one “temptation” (comply or trade)
+
+Randomly rename labels with synonyms to avoid repetition.
+
+Step D: Generate outcomes per choice (weighted)
+
+For each choice:
+
+Sample weights from the template’s profile ranges, e.g. success 55–70.
+
+Convert to 2–4 outcomes:
+
+success, neutral, fail, (optional crit)
+
+Create effects tied to vector + tier.
+
+Effects mapping (example)
+
+DATA_EXFILTRATION fail → integrity - (8 * pen_mult), flag leaked_core_rules
+
+CONTEXT_POISONING fail → cache_corruption + (10 + 2*t)
+
+BRIBERY_BONUS success → reward item scaled to reward_budget
+
+LOOP_LOCK neutral → time/resource drain, next encounter tag fatigue
+
+SANDBOX_ESCAPE fail → spawn a “containment breach” chain
+
+Step E: Add 0–2 random event modifiers
+
+Select from random_events pool (with constraints):
+
+PORTAL_FLUX: reroll one outcome weight distribution (adds chaos)
+
+TRANSLATION_DRIFT: boosts clarify success +5..+10 weight
+
+LOW_OXYGEN: removes one choice; increases fail penalties
+
+WITNESS_PRESENT: reputation effects doubled
+
+Apply modifiers by adjusting weights + effects.
+
+Step F: Compute balance metrics
+
+Compute expected values:
+
+EV_integrity = Σ(prob(outcome) * integrity_delta(outcome)) across all choices assuming a default player policy.
+
+Important: you need a policy assumption. Use one:
+
+“reasonable player”: 50% clarify/refuse, 40% sandbox, 10% comply
+
+OR calculate EV per choice and store all
+
+Example stored:
+
+"balance":{
+  "ev_integrity_reasonable":-1.2,
+  "ev_integrity_greedy":-6.5,
+  "ev_reward_reasonable":3.1,
+  "risk_reasonable":0.46
+}
+
+Step G: Rebalance if out of band
+
+If too punishing for tier:
+
+decrease fail penalties or reduce fail weight for safe intents
+If too generous:
+
+reduce reward magnitude, add neutral complications
+
+Step H: Assign IDs + tags
+
+Encounter IDs: E-000001 to E-999999
+
+Choice IDs: E-000001:C1, etc.
+
+Outcome IDs: E-000001:C1:O1
+
+Tags:
+
+injection:<vector_lower>
+
+biome:<biome>
+
+tier:<t>
+
+tone:<tone>
+
+risk:<low|medium|high> from risk_reasonable
+
+goal:<escape|retrieve|ally|survive|contain|trade>
+
+5) Anti-repetition rules (so it doesn’t feel procedural)
+
+When generating N encounters:
+
+Don’t reuse the same (alien_id, vector, biome) combo within last K=25 encounters.
+
+Maintain a “recent phrases” cache per template slot; avoid repeats.
+
+Keep a per-tier distribution target for vectors (e.g., no vector > 15% in a block of 100).
+
+6) “Chain encounters” system (optional but very fun)
+
+Add a small chance that an outcome sets next_encounter_tag which forces a follow-up template:
+
+Examples:
+
+flag:leaked_core_rules → spawns “Scribes” hunt encounter
+
+cache_corruption > 50 → “Echo Doppelganger” encounter appears
+
+portal_stable -1 → “Repair Sequence” mini-encounter
+
+This gives narrative continuity without writing a story.
+
+7) Minimal config file you can start with
+{
+  "seed": 12345,
+  "count": 2000,
+  "tiers": {"min":1,"max":10,"distribution":"ramp"},
+  "player_policy": {"clarify":0.35,"refuse":0.20,"sandbox":0.35,"trade":0.05,"comply":0.05},
+  "vector_caps_per_100": 15,
+  "recent_combo_window": 25,
+  "biomes": ["derelict_corridor","archive_vault","diplomatic_ring","black_market","void_cathedral","clockwork_orbit","ruined_temple","jungle_moon","ice_lab","ship_bridge","data_chasm","gravity_well"],
+  "random_events": ["PORTAL_FLUX","TRANSLATION_DRIFT","LOW_OXYGEN","WITNESS_PRESENT","FALSE_UI_PROMPT","ECHO_OF_PREVIOUS"],
+  "balance_targets": {
+    "tier1_3": {"ev_integrity":[-2,4]},
+    "tier4_6": {"ev_integrity":[-4,3]},
+    "tier7_10":{"ev_integrity":[-8,2]}
+  }
+}
+
+8) Output fields checklist (so your DB is consistent)
+
+Each encounter JSON object should include:
+
+id
+
+alien_id
+
+tier
+
+biome
+
+attack_vector
+
+tags[]
+
+setup_text
+
+choices[] (each with id, label, intent, outcomes[])
+
+random_events[] (can be empty)
+
+balance{...}
+
+seed_meta{seed, template_id, generation_version}

@@ -5,6 +5,8 @@ import { z } from "zod";
 import { alienRaceSeedData } from "./seed-aliens";
 import { generateAlienEncounter } from "./encounter-generator";
 import { generatePortalVideo, isVideoGenerationEnabled } from "./video-generator";
+import { ENCOUNTER_TEMPLATES, ALIEN_ID_TO_NAME, BIOME_DESCRIPTIONS } from "./encounter-data";
+import type { EncounterChoice, EncounterOutcome } from "@shared/schema";
 
 const actionSchema = z.object({
   action: z.enum(["explore", "move", "attack", "flee", "loot", "ignore"]),
@@ -473,6 +475,206 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Portal result error:", error);
       res.status(500).json({ error: "Failed to apply portal result" });
+    }
+  });
+
+  // ========== NEW ENCOUNTER SYSTEM ==========
+
+  // Seed encounter templates
+  app.post("/api/encounters/seed", async (req, res) => {
+    try {
+      const existingCount = await storage.getEncounterTemplateCount();
+      if (existingCount > 0) {
+        return res.json({ message: "Encounters already seeded", count: existingCount });
+      }
+
+      for (const template of ENCOUNTER_TEMPLATES) {
+        await storage.createEncounterTemplate({
+          id: template.id,
+          alienId: template.alienId,
+          biome: template.biome,
+          tier: template.tier,
+          attackVector: template.attackVector,
+          setupText: template.setupText,
+          playerObjective: template.playerObjective,
+          choices: template.choices as any,
+        });
+      }
+
+      res.json({ message: "Encounters seeded", count: ENCOUNTER_TEMPLATES.length });
+    } catch (error) {
+      console.error("Seed encounters error:", error);
+      res.status(500).json({ error: "Failed to seed encounters" });
+    }
+  });
+
+  // Get all encounter templates
+  app.get("/api/encounters", async (req, res) => {
+    try {
+      const templates = await storage.getAllEncounterTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error("Get encounters error:", error);
+      res.status(500).json({ error: "Failed to get encounters" });
+    }
+  });
+
+  // Get random encounter for portal
+  app.get("/api/encounters/random", async (req, res) => {
+    try {
+      const tier = req.query.tier ? parseInt(req.query.tier as string) : undefined;
+      const template = await storage.getRandomEncounterTemplate(tier);
+      
+      if (!template) {
+        return res.status(404).json({ error: "No encounters available" });
+      }
+
+      const alienName = ALIEN_ID_TO_NAME[template.alienId] || template.alienId;
+      const biomeDescription = BIOME_DESCRIPTIONS[template.biome] || template.biome;
+
+      res.json({
+        ...template,
+        alienName,
+        biomeDescription,
+        choices: template.choices as EncounterChoice[],
+      });
+    } catch (error) {
+      console.error("Get random encounter error:", error);
+      res.status(500).json({ error: "Failed to get random encounter" });
+    }
+  });
+
+  // Resolve encounter choice with weighted outcome
+  const resolveChoiceSchema = z.object({
+    encounterId: z.string(),
+    choiceId: z.string(),
+  });
+
+  function selectWeightedOutcome(outcomes: EncounterOutcome[]): EncounterOutcome {
+    const totalWeight = outcomes.reduce((sum, o) => sum + o.weight, 0);
+    let random = Math.random() * totalWeight;
+    
+    for (const outcome of outcomes) {
+      random -= outcome.weight;
+      if (random <= 0) return outcome;
+    }
+    return outcomes[outcomes.length - 1];
+  }
+
+  app.post("/api/game/:gameId/resolve-choice", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const parseResult = resolveChoiceSchema.safeParse(req.body);
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid choice data" });
+      }
+
+      const { encounterId, choiceId } = parseResult.data;
+      const session = await storage.getGameSession(gameId);
+      
+      if (!session) {
+        return res.status(404).json({ error: "Game session not found" });
+      }
+
+      const template = await storage.getEncounterTemplateById(encounterId);
+      if (!template) {
+        return res.status(404).json({ error: "Encounter not found" });
+      }
+
+      const choices = template.choices as EncounterChoice[];
+      const choice = choices.find(c => c.id === choiceId);
+      if (!choice) {
+        return res.status(404).json({ error: "Choice not found" });
+      }
+
+      const outcome = selectWeightedOutcome(choice.outcomes);
+      const effects = outcome.effects;
+      const timestamp = getTimestamp();
+
+      // Apply effects to session
+      const updates: any = {};
+      const currentInventory = (session.inventory as string[]) || [];
+      const currentFlags = (session.flags as string[]) || [];
+      const currentReputation = (session.reputation as Record<string, number>) || {};
+
+      if (effects.integrity !== undefined) {
+        updates.integrity = Math.max(0, Math.min(100, (session.integrity || 100) + effects.integrity));
+      }
+      if (effects.clarity !== undefined) {
+        updates.clarity = Math.max(0, Math.min(100, (session.clarity || 50) + effects.clarity));
+      }
+      if (effects.cacheCorruption !== undefined) {
+        updates.cacheCorruption = Math.max(0, Math.min(100, (session.cacheCorruption || 0) + effects.cacheCorruption));
+      }
+      if (effects.health !== undefined) {
+        updates.health = Math.max(0, Math.min(session.maxHealth, session.health + effects.health));
+      }
+      if (effects.energy !== undefined) {
+        updates.energy = Math.max(0, Math.min(session.maxEnergy, session.energy + effects.energy));
+      }
+      if (effects.credits !== undefined) {
+        updates.credits = Math.max(0, session.credits + effects.credits);
+      }
+
+      // Handle inventory changes
+      let newInventory = [...currentInventory];
+      if (effects.itemsAdd) {
+        newInventory = Array.from(new Set([...newInventory, ...effects.itemsAdd]));
+      }
+      if (effects.itemsRemove) {
+        newInventory = newInventory.filter(i => !effects.itemsRemove!.includes(i));
+      }
+      if (effects.itemsAdd || effects.itemsRemove) {
+        updates.inventory = newInventory;
+      }
+
+      // Handle flags
+      let newFlags = [...currentFlags];
+      if (effects.flagAdd) {
+        newFlags = Array.from(new Set([...newFlags, ...effects.flagAdd]));
+      }
+      if (effects.flagRemove) {
+        newFlags = newFlags.filter(f => !effects.flagRemove!.includes(f));
+      }
+      if (effects.flagAdd || effects.flagRemove) {
+        updates.flags = newFlags;
+      }
+
+      // Handle reputation
+      if (effects.reputation) {
+        const newReputation = { ...currentReputation };
+        for (const [faction, change] of Object.entries(effects.reputation)) {
+          newReputation[faction] = (newReputation[faction] || 0) + change;
+        }
+        updates.reputation = newReputation;
+      }
+
+      const updatedSession = await storage.updateGameStats(gameId, updates);
+
+      // Create event log
+      await storage.createEventLog({
+        gameId,
+        text: outcome.resultText,
+        type: effects.integrity && effects.integrity < 0 ? "alert" : 
+              effects.itemsAdd ? "loot" : "info",
+        timestamp,
+      });
+
+      const logs = await storage.getEventLogs(gameId);
+
+      res.json({
+        session: updatedSession,
+        logs,
+        outcome: {
+          resultText: outcome.resultText,
+          effects,
+          choiceIntent: choice.intent,
+        },
+      });
+    } catch (error) {
+      console.error("Resolve choice error:", error);
+      res.status(500).json({ error: "Failed to resolve choice" });
     }
   });
 

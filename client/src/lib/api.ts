@@ -1,4 +1,5 @@
 import type { GameSession, Encounter, EventLog, AlienRace } from "@shared/schema";
+export type { GameSession, EventLog };
 
 export interface GameState {
   session: GameSession;
@@ -158,5 +159,88 @@ export async function generateVideo(prompt: string, alienName: string): Promise<
 
 export async function checkVideoStatus(): Promise<{ enabled: boolean }> {
   const response = await fetch("/api/video/status");
+  return response.json();
+}
+
+// New Encounter System
+export interface EncounterOutcome {
+  id: string;
+  weight: number;
+  resultText: string;
+  effects: {
+    integrity?: number;
+    clarity?: number;
+    cacheCorruption?: number;
+    health?: number;
+    energy?: number;
+    credits?: number;
+    itemsAdd?: string[];
+    itemsRemove?: string[];
+    flagAdd?: string[];
+    flagRemove?: string[];
+    reputation?: Record<string, number>;
+    nextEncounterTag?: string;
+    portalStable?: number;
+    paradoxDebt?: number;
+  };
+}
+
+export interface EncounterChoice {
+  id: string;
+  label: string;
+  intent: "refuse" | "clarify" | "sandbox" | "comply" | "hack" | "attack" | "flee" | "trade";
+  outcomes: EncounterOutcome[];
+}
+
+export interface EncounterTemplateResponse {
+  id: string;
+  alienId: string;
+  alienName: string;
+  biome: string;
+  biomeDescription: string;
+  tier: number;
+  attackVector: string;
+  setupText: string;
+  playerObjective: string;
+  choices: EncounterChoice[];
+}
+
+export async function seedEncounters(): Promise<{ message: string; count: number }> {
+  const response = await fetch("/api/encounters/seed", { method: "POST" });
+  return response.json();
+}
+
+export async function getRandomEncounter(tier?: number): Promise<EncounterTemplateResponse> {
+  const url = tier ? `/api/encounters/random?tier=${tier}` : "/api/encounters/random";
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Failed to get random encounter");
+  }
+  return response.json();
+}
+
+export interface ResolveChoiceResponse {
+  session: GameSession;
+  logs: EventLog[];
+  outcome: {
+    resultText: string;
+    effects: EncounterOutcome["effects"];
+    choiceIntent: string;
+  };
+}
+
+export async function resolveChoice(
+  gameId: string,
+  encounterId: string,
+  choiceId: string
+): Promise<ResolveChoiceResponse> {
+  const response = await fetch(`/api/game/${gameId}/resolve-choice`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ encounterId, choiceId }),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to resolve choice");
+  }
   return response.json();
 }
