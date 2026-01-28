@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { startGame } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Gamepad2, Users, Trophy, Settings, Zap, Shield, Skull, Star, ChevronRight, Play } from "lucide-react";
+import { Gamepad2, Users, Trophy, Settings, Zap, Shield, Skull, Star, ChevronRight, Play, BookOpen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import portalVideo from "@/assets/videos/portal-aliens.mp4";
 
@@ -83,6 +83,20 @@ export default function Home() {
             <Settings className="w-4 h-4 mr-3 opacity-60" />
             Settings
           </Button>
+
+          <Separator className="my-4 bg-primary/10" />
+
+          <Link href="/wiki">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start menu-item text-primary hover:bg-primary/10"
+              data-testid="button-wiki"
+            >
+              <BookOpen className="w-4 h-4 mr-3" />
+              Alien Races Wiki
+              <ChevronRight className="w-4 h-4 ml-auto opacity-50" />
+            </Button>
+          </Link>
 
           <Separator className="my-4 bg-primary/10" />
 
