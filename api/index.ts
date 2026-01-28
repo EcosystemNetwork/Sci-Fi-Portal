@@ -1,3 +1,12 @@
-import app from '../server/index';
+import { appPromise } from '../server/index';
+import type { Request, Response } from 'express';
 
-export default app;
+// Wait for app initialization before handling requests
+let initializedApp: Awaited<typeof appPromise> | null = null;
+
+export default async function handler(req: Request, res: Response) {
+  if (!initializedApp) {
+    initializedApp = await appPromise;
+  }
+  return initializedApp(req, res);
+}

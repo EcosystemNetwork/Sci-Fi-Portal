@@ -62,7 +62,8 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
+// Initialize the app and return a promise
+async function initializeApp() {
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
@@ -105,8 +106,14 @@ app.use((req, res, next) => {
       },
     );
   }
-})();
 
-// Export the app for Vercel serverless functions
+  return app;
+}
+
+// Export the initialization promise for Vercel
+export const appPromise = initializeApp();
+
+// For non-Vercel environments, execute the initialization
+// The app is exported for Vercel serverless functions
 export default app;
 
