@@ -6,7 +6,8 @@ import { StatusPanel } from "@/components/game/StatusPanel";
 import { EventLog } from "@/components/game/EventLog";
 import { Controls } from "@/components/game/Controls";
 import { ActionDisplay } from "@/components/game/ActionDisplay";
-import { getActiveGame, performAction } from "@/lib/api";
+import { Portal } from "@/components/game/Portal";
+import { getActiveGame, performAction, applyPortalResult, type PortalResult } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
@@ -31,6 +32,15 @@ export default function Game() {
     },
   });
 
+  // Portal result mutation
+  const portalMutation = useMutation({
+    mutationFn: ({ gameId, result }: { gameId: string; result: PortalResult }) =>
+      applyPortalResult(gameId, result),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["game"], data);
+    },
+  });
+
   // Redirect to home if no active game
   useEffect(() => {
     if (error) {
@@ -41,6 +51,11 @@ export default function Game() {
   const handleAction = (action: string) => {
     if (!gameState?.session) return;
     actionMutation.mutate({ gameId: gameState.session.id, action });
+  };
+
+  const handlePortalResult = (result: PortalResult) => {
+    if (!gameState?.session) return;
+    portalMutation.mutate({ gameId: gameState.session.id, result });
   };
 
   if (isLoading) {
@@ -112,10 +127,14 @@ export default function Game() {
           </div>
         </div>
 
-        {/* Center/Right Panel: Action & Controls */}
+        {/* Center/Right Panel: Portal & Controls */}
         <div className="col-span-12 md:col-span-9 flex flex-col h-full gap-4">
-          <div className="flex-1 bg-black/40 border border-primary/20 p-1 relative">
-            <ActionDisplay encounter={displayEncounter} />
+          <div className="flex-1 bg-black/40 border border-primary/20 p-1 relative min-h-[400px]">
+            {displayEncounter ? (
+              <ActionDisplay encounter={displayEncounter} />
+            ) : (
+              <Portal onEncounterResult={handlePortalResult} />
+            )}
           </div>
           <div className="flex-none">
             <Controls 

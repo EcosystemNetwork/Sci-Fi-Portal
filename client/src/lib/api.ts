@@ -106,3 +106,23 @@ export async function generateEncounter(): Promise<GeneratedEncounter> {
   }
   return response.json();
 }
+
+export interface PortalResult {
+  type: "credits" | "health" | "energy" | "damage" | "nothing";
+  amount: number;
+  message: string;
+}
+
+export async function applyPortalResult(gameId: string, result: PortalResult): Promise<GameState> {
+  const response = await fetch(`/api/game/${gameId}/portal-result`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(result),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to apply portal result");
+  }
+  return response.json();
+}

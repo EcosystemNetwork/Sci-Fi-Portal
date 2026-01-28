@@ -381,5 +381,65 @@ export async function registerRoutes(
     }
   });
 
+  // Apply encounter result to game session
+  const encounterResultSchema = z.object({
+    type: z.enum(["credits", "health", "energy", "damage", "nothing"]),
+    amount: z.number(),
+    message: z.string(),
+  });
+
+  app.post("/api/game/:gameId/portal-result", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const parseResult = encounterResultSchema.safeParse(req.body);
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid result data" });
+      }
+      
+      const { type, amount, message } = parseResult.data;
+      const session = await storage.getGameSession(gameId);
+      
+      if (!session) {
+        return res.status(404).json({ error: "Game session not found" });
+      }
+
+      const timestamp = getTimestamp();
+      let updates: any = {};
+
+      switch (type) {
+        case "credits":
+          updates.credits = Math.min(99999, session.credits + amount);
+          break;
+        case "health":
+          updates.health = Math.min(session.maxHealth, session.health + amount);
+          break;
+        case "energy":
+          updates.energy = Math.min(session.maxEnergy, session.energy + amount);
+          break;
+        case "damage":
+          updates.health = Math.max(0, session.health - amount);
+          break;
+      }
+
+      const updatedSession = await storage.updateGameSession(gameId, updates);
+      
+      await storage.createEventLog({
+        gameId,
+        text: message,
+        type: type === "damage" ? "alert" : type === "nothing" ? "info" : "loot",
+        timestamp,
+      });
+
+      const logs = await storage.getEventLogs(gameId);
+      const encounter = await storage.getActiveEncounter(gameId);
+
+      res.json({ session: updatedSession, logs, encounter });
+    } catch (error) {
+      console.error("Portal result error:", error);
+      res.status(500).json({ error: "Failed to apply portal result" });
+    }
+  });
+
   return httpServer;
 }
