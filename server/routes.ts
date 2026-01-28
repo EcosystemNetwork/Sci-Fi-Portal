@@ -406,7 +406,7 @@ export async function registerRoutes(
         });
       }
 
-      const result = await generatePortalVideo(prompt, alienName);
+      const result = await generatePortalVideo(prompt, alienName, true);
       
       if (result.error) {
         return res.status(500).json({ error: result.error, fallback: true });

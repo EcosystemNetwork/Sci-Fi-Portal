@@ -53,33 +53,77 @@ async function downloadVideo(url: string, destPath: string): Promise<void> {
   });
 }
 
-export async function generatePortalVideo(prompt: string, alienName: string): Promise<VideoGenerationResult> {
+export async function generatePortalVideo(prompt: string, alienName: string, forceNew: boolean = true): Promise<VideoGenerationResult> {
   if (!ai) {
     return { videoUrl: null, localPath: null, error: "Video generation not configured" };
   }
 
-  const existingVideo = await storage.getVideoByAlienName(alienName);
-  if (existingVideo) {
-    console.log("Using cached video for:", alienName);
-    return { 
-      videoUrl: `/videos/${existingVideo.localPath}`, 
-      localPath: existingVideo.localPath 
-    };
+  // Generate unique key for this specific encounter to allow parallel generation
+  const encounterKey = `${alienName}-${Date.now()}`;
+  
+  if (!forceNew) {
+    const existingVideo = await storage.getVideoByAlienName(alienName);
+    if (existingVideo) {
+      console.log("Using cached video for:", alienName);
+      return { 
+        videoUrl: `/videos/${existingVideo.localPath}`, 
+        localPath: existingVideo.localPath 
+      };
+    }
   }
 
-  if (generationInProgress.has(alienName)) {
-    console.log("Video generation already in progress for:", alienName);
-    return generationInProgress.get(alienName)!;
+  if (generationInProgress.has(encounterKey)) {
+    console.log("Video generation already in progress for:", encounterKey);
+    return generationInProgress.get(encounterKey)!;
   }
 
   const generationPromise = generateVideoInternal(prompt, alienName);
-  generationInProgress.set(alienName, generationPromise);
+  generationInProgress.set(encounterKey, generationPromise);
   
   try {
     return await generationPromise;
   } finally {
-    generationInProgress.delete(alienName);
+    generationInProgress.delete(encounterKey);
   }
+}
+
+const VISUAL_STYLES = [
+  "neon-lit cyberpunk atmosphere with rain reflections",
+  "ancient temple ruins with bioluminescent alien flora",
+  "crystalline void with fractal energy patterns",
+  "industrial spaceship corridor with steam and sparks",
+  "frozen wasteland with aurora borealis overhead",
+  "volcanic moon surface with lava rivers",
+  "underwater bioluminescent cavern with floating debris",
+  "cosmic nebula background with star clusters",
+  "overgrown bio-mechanical structure with pulsing veins",
+  "holographic grid space with data streams"
+];
+
+const CAMERA_MOVEMENTS = [
+  "slow dramatic zoom revealing the alien",
+  "smooth orbital camera circling the portal",
+  "push-in through portal energy to alien reveal",
+  "low angle shot rising to eye level",
+  "tracking shot following energy tendrils",
+  "crane shot descending from above"
+];
+
+const PORTAL_EFFECTS = [
+  "swirling vortex of cyan and purple quantum energy",
+  "crackling electrical discharge with plasma arcs",
+  "rippling dimensional tear with reality fragments",
+  "spiraling void with gravitational distortion",
+  "pulsating gateway with chromatic aberration",
+  "unstable rift with flickering between dimensions"
+];
+
+function generateDynamicPrompt(basePrompt: string, alienName: string): string {
+  const style = VISUAL_STYLES[Math.floor(Math.random() * VISUAL_STYLES.length)];
+  const camera = CAMERA_MOVEMENTS[Math.floor(Math.random() * CAMERA_MOVEMENTS.length)];
+  const portal = PORTAL_EFFECTS[Math.floor(Math.random() * PORTAL_EFFECTS.length)];
+  
+  return `Cinematic sci-fi 4K video: ${basePrompt}. ${alienName} materializes through a ${portal}. Environment: ${style}. Camera: ${camera}. Dramatic lighting with volumetric fog, particle effects, lens flares. Highly detailed alien creature design, menacing yet mysterious presence. Professional cinematography quality.`;
 }
 
 async function generateVideoInternal(prompt: string, alienName: string): Promise<VideoGenerationResult> {
@@ -87,7 +131,7 @@ async function generateVideoInternal(prompt: string, alienName: string): Promise
     return { videoUrl: null, localPath: null, error: "Video generation not configured" };
   }
   
-  const enhancedPrompt = `Cinematic sci-fi video: ${prompt}, emerging from a glowing quantum portal with swirling cyan and purple energy, dramatic lighting, 4K quality, smooth camera movement, ethereal atmosphere`;
+  const enhancedPrompt = generateDynamicPrompt(prompt, alienName);
 
   try {
     console.log("Starting Veo 3 video generation for:", alienName);

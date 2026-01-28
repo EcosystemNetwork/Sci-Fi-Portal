@@ -26,6 +26,7 @@ export type AttackVector = typeof ATTACK_VECTORS[number];
 // Game Sessions Table
 export const gameSessions = pgTable("game_sessions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Legacy stats (kept for compatibility)
   health: integer("health").notNull().default(100),
   maxHealth: integer("max_health").notNull().default(100),
   energy: integer("energy").notNull().default(100),
@@ -35,6 +36,25 @@ export const gameSessions = pgTable("game_sessions", {
   integrity: integer("integrity").notNull().default(100),
   clarity: integer("clarity").notNull().default(50),
   cacheCorruption: integer("cache_corruption").notNull().default(0),
+  
+  // Visible Combat Stats
+  ammunition: integer("ammunition").notNull().default(100),
+  maxAmmunition: integer("max_ammunition").notNull().default(100),
+  armour: integer("armour").notNull().default(50),
+  chargeBonus: integer("charge_bonus").notNull().default(10),
+  leadership: integer("leadership").notNull().default(75),
+  meleeAttack: integer("melee_attack").notNull().default(30),
+  meleeDefence: integer("melee_defence").notNull().default(25),
+  missileStrength: integer("missile_strength").notNull().default(20),
+  range: integer("range").notNull().default(150),
+  speed: integer("speed").notNull().default(40),
+  weaponStrength: integer("weapon_strength").notNull().default(35),
+  
+  // Hidden Stats
+  accuracy: integer("accuracy").notNull().default(70),
+  replenishmentRate: integer("replenishment_rate").notNull().default(5),
+  reloadTime: integer("reload_time").notNull().default(8),
+  
   inventory: jsonb("inventory").notNull().default([]),
   flags: jsonb("flags").notNull().default([]),
   reputation: jsonb("reputation").notNull().default({}),
