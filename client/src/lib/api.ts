@@ -136,14 +136,24 @@ export interface VideoGenerationResult {
 }
 
 export async function generateVideo(prompt: string, alienName: string): Promise<VideoGenerationResult> {
-  const response = await fetch("/api/video/generate", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ prompt, alienName }),
-  });
-  return response.json();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
+  
+  try {
+    const response = await fetch("/api/video/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt, alienName }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response.json();
+  } catch (error) {
+    clearTimeout(timeoutId);
+    return { fallback: true, error: "Video generation timed out" };
+  }
 }
 
 export async function checkVideoStatus(): Promise<{ enabled: boolean }> {

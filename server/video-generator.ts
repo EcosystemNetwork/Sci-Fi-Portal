@@ -19,6 +19,8 @@ if (!fs.existsSync(VIDEO_DIR)) {
   fs.mkdirSync(VIDEO_DIR, { recursive: true });
 }
 
+const generationInProgress = new Map<string, Promise<VideoGenerationResult>>();
+
 export interface VideoGenerationResult {
   videoUrl: string | null;
   localPath: string | null;
@@ -60,18 +62,38 @@ export async function generatePortalVideo(prompt: string, alienName: string): Pr
   if (existingVideo) {
     console.log("Using cached video for:", alienName);
     return { 
-      videoUrl: `/videos/${path.basename(existingVideo.localPath)}`, 
+      videoUrl: `/videos/${existingVideo.localPath}`, 
       localPath: existingVideo.localPath 
     };
   }
 
+  if (generationInProgress.has(alienName)) {
+    console.log("Video generation already in progress for:", alienName);
+    return generationInProgress.get(alienName)!;
+  }
+
+  const generationPromise = generateVideoInternal(prompt, alienName);
+  generationInProgress.set(alienName, generationPromise);
+  
+  try {
+    return await generationPromise;
+  } finally {
+    generationInProgress.delete(alienName);
+  }
+}
+
+async function generateVideoInternal(prompt: string, alienName: string): Promise<VideoGenerationResult> {
+  if (!ai) {
+    return { videoUrl: null, localPath: null, error: "Video generation not configured" };
+  }
+  
   const enhancedPrompt = `Cinematic sci-fi video: ${prompt}, emerging from a glowing quantum portal with swirling cyan and purple energy, dramatic lighting, 4K quality, smooth camera movement, ethereal atmosphere`;
 
   try {
     console.log("Starting Veo 3 video generation for:", alienName);
     console.log("Prompt:", enhancedPrompt);
 
-    const operation = await ai.models.generateVideos({
+    const operation = await ai!.models.generateVideos({
       model: "veo-3.1-generate-preview",
       prompt: enhancedPrompt,
       config: {
@@ -86,7 +108,7 @@ export async function generatePortalVideo(prompt: string, alienName: string): Pr
 
     while (!result.done && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 5000));
-      result = await ai.operations.get({ operation: result });
+      result = await ai!.operations.get({ operation: result });
       attempts++;
       console.log(`Video generation polling attempt ${attempts}...`);
     }
