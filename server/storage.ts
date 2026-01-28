@@ -1,48 +1,268 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
+/**
+ * Database Storage Module
+ * 
+ * Supports both PostgreSQL (production) and SQLite (local development).
+ * - If DATABASE_URL starts with "postgres", uses PostgreSQL
+ * - Otherwise, uses SQLite with a local file (./data/game.db)
+ */
 import { eq, desc, and } from "drizzle-orm";
-import {
-  type GameSession,
-  type InsertGameSession,
-  type Encounter,
-  type InsertEncounter,
-  type EventLog,
-  type InsertEventLog,
-  type AlienRace,
-  type InsertAlienRace,
-  type GeneratedVideo,
-  type InsertGeneratedVideo,
-  type EncounterTemplate,
-  type InsertEncounterTemplate,
-  type Item,
-  type InsertItem,
-  type PlayerInventory,
-  type InsertPlayerInventory,
-  type Skill,
-  type InsertSkill,
-  type PlayerSkill,
-  type InsertPlayerSkill,
-  type AlienRelationship,
-  type InsertAlienRelationship,
-  gameSessions,
-  encounters,
-  eventLogs,
-  alienRaces,
-  generatedVideos,
-  encounterTemplates,
-  items,
-  playerInventory,
-  skills,
-  playerSkills,
-  alienRelationships,
+
+// Import types from the PostgreSQL schema (types are compatible between both)
+import type {
+  GameSession,
+  InsertGameSession,
+  Encounter,
+  InsertEncounter,
+  EventLog,
+  InsertEventLog,
+  AlienRace,
+  InsertAlienRace,
+  GeneratedVideo,
+  InsertGeneratedVideo,
+  EncounterTemplate,
+  InsertEncounterTemplate,
+  Item,
+  InsertItem,
+  PlayerInventory,
+  InsertPlayerInventory,
+  Skill,
+  InsertSkill,
+  PlayerSkill,
+  InsertPlayerSkill,
+  AlienRelationship,
+  InsertAlienRelationship,
 } from "@shared/schema";
 
-const client = new pg.Client({
-  connectionString: process.env.DATABASE_URL,
-});
+// Determine database type
+const usePostgres = process.env.DATABASE_URL?.startsWith("postgres");
 
-client.connect();
-export const db = drizzle(client);
+// Database instance and schema tables - will be initialized based on environment
+let db: any;
+let gameSessions: any;
+let encounters: any;
+let eventLogs: any;
+let alienRaces: any;
+let generatedVideos: any;
+let encounterTemplates: any;
+let items: any;
+let playerInventory: any;
+let skills: any;
+let playerSkills: any;
+let alienRelationships: any;
+
+if (usePostgres) {
+  // PostgreSQL mode
+  const { drizzle } = await import("drizzle-orm/node-postgres");
+  const pg = await import("pg");
+  const schema = await import("@shared/schema");
+  
+  const client = new pg.default.Client({
+    connectionString: process.env.DATABASE_URL,
+  });
+  
+  await client.connect();
+  db = drizzle(client);
+  
+  // Use PostgreSQL schema tables
+  gameSessions = schema.gameSessions;
+  encounters = schema.encounters;
+  eventLogs = schema.eventLogs;
+  alienRaces = schema.alienRaces;
+  generatedVideos = schema.generatedVideos;
+  encounterTemplates = schema.encounterTemplates;
+  items = schema.items;
+  playerInventory = schema.playerInventory;
+  skills = schema.skills;
+  playerSkills = schema.playerSkills;
+  alienRelationships = schema.alienRelationships;
+  
+  console.log("📊 Connected to PostgreSQL database");
+} else {
+  // SQLite mode for local development
+  const { drizzle } = await import("drizzle-orm/better-sqlite3");
+  const Database = (await import("better-sqlite3")).default;
+  const fs = await import("fs");
+  const path = await import("path");
+  const schema = await import("@shared/schema-sqlite");
+  
+  const dbPath = process.env.DATABASE_PATH || "./data/game.db";
+  
+  // Ensure directory exists
+  const dir = path.dirname(dbPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  
+  const sqlite = new Database(dbPath);
+  sqlite.pragma("journal_mode = WAL");
+  
+  // Initialize SQLite tables
+  initializeSQLiteTables(sqlite);
+  
+  db = drizzle(sqlite);
+  
+  // Use SQLite schema tables
+  gameSessions = schema.gameSessions;
+  encounters = schema.encounters;
+  eventLogs = schema.eventLogs;
+  alienRaces = schema.alienRaces;
+  generatedVideos = schema.generatedVideos;
+  encounterTemplates = schema.encounterTemplates;
+  items = schema.items;
+  playerInventory = schema.playerInventory;
+  skills = schema.skills;
+  playerSkills = schema.playerSkills;
+  alienRelationships = schema.alienRelationships;
+  
+  console.log(`📊 Connected to SQLite database at ${dbPath}`);
+}
+
+function initializeSQLiteTables(sqlite: any) {
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS game_sessions (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+      health INTEGER NOT NULL DEFAULT 100,
+      max_health INTEGER NOT NULL DEFAULT 100,
+      energy INTEGER NOT NULL DEFAULT 100,
+      max_energy INTEGER NOT NULL DEFAULT 100,
+      credits INTEGER NOT NULL DEFAULT 250,
+      level INTEGER NOT NULL DEFAULT 1,
+      integrity INTEGER NOT NULL DEFAULT 100,
+      clarity INTEGER NOT NULL DEFAULT 50,
+      cache_corruption INTEGER NOT NULL DEFAULT 0,
+      ammunition INTEGER NOT NULL DEFAULT 100,
+      max_ammunition INTEGER NOT NULL DEFAULT 100,
+      armour INTEGER NOT NULL DEFAULT 50,
+      charge_bonus INTEGER NOT NULL DEFAULT 10,
+      leadership INTEGER NOT NULL DEFAULT 75,
+      melee_attack INTEGER NOT NULL DEFAULT 30,
+      melee_defence INTEGER NOT NULL DEFAULT 25,
+      missile_strength INTEGER NOT NULL DEFAULT 20,
+      range INTEGER NOT NULL DEFAULT 150,
+      speed INTEGER NOT NULL DEFAULT 40,
+      weapon_strength INTEGER NOT NULL DEFAULT 35,
+      accuracy INTEGER NOT NULL DEFAULT 70,
+      replenishment_rate INTEGER NOT NULL DEFAULT 5,
+      reload_time INTEGER NOT NULL DEFAULT 8,
+      experience INTEGER NOT NULL DEFAULT 0,
+      experience_to_level INTEGER NOT NULL DEFAULT 100,
+      skill_points INTEGER NOT NULL DEFAULT 3,
+      inventory TEXT NOT NULL DEFAULT '[]',
+      flags TEXT NOT NULL DEFAULT '[]',
+      reputation TEXT NOT NULL DEFAULT '{}',
+      game_state TEXT NOT NULL DEFAULT 'idle',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS encounters (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+      game_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      resolved INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS event_logs (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+      game_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      type TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS alien_races (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT,
+      traits TEXT,
+      video_prompt TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS generated_videos (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+      alien_name TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      local_path TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS encounter_templates (
+      id TEXT PRIMARY KEY,
+      alien_id TEXT NOT NULL,
+      biome TEXT NOT NULL,
+      tier INTEGER NOT NULL DEFAULT 1,
+      attack_vector TEXT NOT NULL,
+      setup_text TEXT NOT NULL,
+      player_objective TEXT NOT NULL,
+      choices TEXT NOT NULL DEFAULT '[]',
+      rewards TEXT,
+      penalties TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS items (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      slot TEXT NOT NULL,
+      rarity TEXT NOT NULL DEFAULT 'common',
+      icon TEXT NOT NULL DEFAULT 'package',
+      stat_modifiers TEXT NOT NULL DEFAULT '{}',
+      special_effects TEXT NOT NULL DEFAULT '[]',
+      required_level INTEGER NOT NULL DEFAULT 1,
+      value INTEGER NOT NULL DEFAULT 100
+    );
+
+    CREATE TABLE IF NOT EXISTS player_inventory (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+      game_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+      item_id TEXT NOT NULL REFERENCES items(id),
+      quantity INTEGER NOT NULL DEFAULT 1,
+      equipped INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS skills (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT NOT NULL,
+      tier INTEGER NOT NULL DEFAULT 1,
+      icon TEXT NOT NULL DEFAULT 'star',
+      stat_modifiers TEXT NOT NULL DEFAULT '{}',
+      prerequisites TEXT NOT NULL DEFAULT '[]',
+      cost INTEGER NOT NULL DEFAULT 1,
+      max_rank INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS player_skills (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+      game_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+      skill_id TEXT NOT NULL REFERENCES skills(id),
+      rank INTEGER NOT NULL DEFAULT 1,
+      unlocked_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS alien_relationships (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab',abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6)))),
+      game_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+      faction TEXT NOT NULL,
+      standing INTEGER NOT NULL DEFAULT 0,
+      title TEXT NOT NULL DEFAULT 'Unknown',
+      encounter_count INTEGER NOT NULL DEFAULT 0,
+      last_encounter TEXT
+    );
+  `);
+}
+
+export { db };
 
 export interface IStorage {
   // Game Sessions
@@ -484,17 +704,17 @@ export class DbStorage implements IStorage {
       relationship = newRel;
     }
 
-    const newStanding = Math.max(-100, Math.min(100, relationship.standing + standingChange));
+    const newStanding = Math.max(-100, Math.min(100, relationship!.standing + standingChange));
     const title = this.getRelationshipTitle(newStanding);
     
     const [updated] = await db.update(alienRelationships)
       .set({ 
         standing: newStanding, 
         title,
-        encounterCount: relationship.encounterCount + 1,
+        encounterCount: relationship!.encounterCount + 1,
         lastEncounter: new Date()
       })
-      .where(eq(alienRelationships.id, relationship.id))
+      .where(eq(alienRelationships.id, relationship!.id))
       .returning();
     
     return updated;

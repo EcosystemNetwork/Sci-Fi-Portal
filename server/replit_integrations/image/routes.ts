@@ -1,10 +1,14 @@
 import type { Express, Request, Response } from "express";
 import { Modality } from "@google/genai";
-import { ai } from "./client";
+import { ai, isAIAvailable } from "./client";
 
 export function registerImageRoutes(app: Express): void {
   app.post("/api/generate-image", async (req: Request, res: Response) => {
     try {
+      if (!isAIAvailable() || !ai) {
+        return res.status(503).json({ error: "Image generation not available. Set GEMINI_API_KEY." });
+      }
+      
       const { prompt } = req.body;
 
       if (!prompt) {
