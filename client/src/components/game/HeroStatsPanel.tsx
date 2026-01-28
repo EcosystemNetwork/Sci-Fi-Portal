@@ -109,9 +109,10 @@ interface CompactStatProps {
   value: number;
   color: string;
   tooltip?: string;
+  bonus?: number;
 }
 
-function CompactStat({ icon, label, value, color, tooltip }: CompactStatProps) {
+function CompactStat({ icon, label, value, color, tooltip, bonus }: CompactStatProps) {
   const content = (
     <div className="flex items-center gap-2 p-2 bg-black/30 rounded border border-white/5 hover:border-white/10 transition-colors">
       <div className={cn("p-1.5 rounded bg-black/40", color)}>
@@ -119,7 +120,14 @@ function CompactStat({ icon, label, value, color, tooltip }: CompactStatProps) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[9px] font-mono text-muted-foreground truncate">{label}</p>
-        <p className="text-sm font-display font-bold text-white">{value}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-sm font-display font-bold text-white">{value}</p>
+          {bonus && bonus !== 0 && (
+            <span className={cn("text-[10px] font-mono", bonus > 0 ? "text-green-400" : "text-red-400")}>
+              ({bonus > 0 ? "+" : ""}{bonus})
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -143,9 +151,16 @@ function CompactStat({ icon, label, value, color, tooltip }: CompactStatProps) {
 interface HeroStatsPanelProps {
   stats: HeroStats;
   showHiddenStats?: boolean;
+  bonuses?: Record<string, number>;
 }
 
-export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPanelProps) {
+export function HeroStatsPanel({ stats, showHiddenStats = false, bonuses = {} }: HeroStatsPanelProps) {
+  const hasBonus = (stat: string) => bonuses[stat] && bonuses[stat] !== 0;
+  const formatBonus = (stat: string) => {
+    const bonus = bonuses[stat];
+    if (!bonus || bonus === 0) return null;
+    return bonus > 0 ? `+${bonus}` : `${bonus}`;
+  };
   return (
     <TooltipProvider delayDuration={300}>
       <div className="h-full flex flex-col gap-3 p-4 bg-card/60 backdrop-blur-sm border border-primary/10 rounded overflow-y-auto">
@@ -197,6 +212,7 @@ export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPane
             value={stats.armour}
             color="text-slate-400"
             tooltip="Damage reduction from incoming attacks. Higher means more protection."
+            bonus={bonuses.armour}
           />
           <CompactStat
             icon={<Flame className="w-3.5 h-3.5" />}
@@ -204,6 +220,7 @@ export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPane
             value={stats.chargeBonus}
             color="text-orange-400"
             tooltip="Bonus damage when charging into melee combat."
+            bonus={bonuses.chargeBonus}
           />
           <CompactStat
             icon={<Crown className="w-3.5 h-3.5" />}
@@ -211,6 +228,7 @@ export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPane
             value={stats.leadership}
             color="text-yellow-400"
             tooltip="Morale and command presence. Affects crew and ally effectiveness."
+            bonus={bonuses.leadership}
           />
           <CompactStat
             icon={<Swords className="w-3.5 h-3.5" />}
@@ -218,6 +236,7 @@ export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPane
             value={stats.meleeAttack}
             color="text-red-400"
             tooltip="Offensive capability in close-quarters combat."
+            bonus={bonuses.meleeAttack}
           />
           <CompactStat
             icon={<Shield className="w-3.5 h-3.5" />}
@@ -225,6 +244,7 @@ export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPane
             value={stats.meleeDefence}
             color="text-cyan-400"
             tooltip="Ability to block and parry melee attacks."
+            bonus={bonuses.meleeDefence}
           />
           <CompactStat
             icon={<Crosshair className="w-3.5 h-3.5" />}
@@ -232,6 +252,7 @@ export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPane
             value={stats.missileStrength}
             color="text-emerald-400"
             tooltip="Damage dealt by ranged and missile weapons."
+            bonus={bonuses.missileStrength}
           />
           <CompactStat
             icon={<Radar className="w-3.5 h-3.5" />}
@@ -239,6 +260,7 @@ export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPane
             value={stats.range}
             color="text-blue-400"
             tooltip="Maximum effective distance for ranged attacks."
+            bonus={bonuses.range}
           />
           <CompactStat
             icon={<Wind className="w-3.5 h-3.5" />}
@@ -246,6 +268,7 @@ export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPane
             value={stats.speed}
             color="text-teal-400"
             tooltip="Movement and reaction speed in combat."
+            bonus={bonuses.speed}
           />
           <CompactStat
             icon={<Gauge className="w-3.5 h-3.5" />}
@@ -253,6 +276,7 @@ export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPane
             value={stats.weaponStrength}
             color="text-pink-400"
             tooltip="Raw damage output from primary weapons."
+            bonus={bonuses.weaponStrength}
           />
         </div>
 
@@ -267,15 +291,36 @@ export function HeroStatsPanel({ stats, showHiddenStats = false }: HeroStatsPane
               <div className="grid grid-cols-3 gap-1 text-[10px]">
                 <div className="p-1.5 bg-black/20 rounded text-center">
                   <p className="text-muted-foreground">ACC</p>
-                  <p className="font-mono text-white">{stats.accuracy}%</p>
+                  <div className="flex items-center justify-center gap-0.5">
+                    <p className="font-mono text-white">{stats.accuracy}%</p>
+                    {bonuses.accuracy && bonuses.accuracy !== 0 && (
+                      <span className={cn("text-[9px]", bonuses.accuracy > 0 ? "text-green-400" : "text-red-400")}>
+                        ({bonuses.accuracy > 0 ? "+" : ""}{bonuses.accuracy})
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="p-1.5 bg-black/20 rounded text-center">
                   <p className="text-muted-foreground">REPLEN</p>
-                  <p className="font-mono text-white">{stats.replenishmentRate}/s</p>
+                  <div className="flex items-center justify-center gap-0.5">
+                    <p className="font-mono text-white">{stats.replenishmentRate}/s</p>
+                    {bonuses.replenishmentRate && bonuses.replenishmentRate !== 0 && (
+                      <span className={cn("text-[9px]", bonuses.replenishmentRate > 0 ? "text-green-400" : "text-red-400")}>
+                        ({bonuses.replenishmentRate > 0 ? "+" : ""}{bonuses.replenishmentRate})
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="p-1.5 bg-black/20 rounded text-center">
                   <p className="text-muted-foreground">RELOAD</p>
-                  <p className="font-mono text-white">{stats.reloadTime}s</p>
+                  <div className="flex items-center justify-center gap-0.5">
+                    <p className="font-mono text-white">{stats.reloadTime}s</p>
+                    {bonuses.reloadTime && bonuses.reloadTime !== 0 && (
+                      <span className={cn("text-[9px]", bonuses.reloadTime < 0 ? "text-green-400" : "text-red-400")}>
+                        ({bonuses.reloadTime > 0 ? "+" : ""}{bonuses.reloadTime})
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

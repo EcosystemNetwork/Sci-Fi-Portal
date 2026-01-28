@@ -30,10 +30,36 @@ Preferred communication style: Simple, everyday language.
 ### Data Storage
 - **Database**: PostgreSQL (configured via DATABASE_URL environment variable)
 - **Tables**:
-  - `game_sessions`: Tracks player stats (health, energy, credits, level, game state)
+  - `game_sessions`: Tracks player stats (health, energy, credits, level, experience, skill points, game state)
   - `encounters`: Stores active encounters per game session
   - `event_logs`: Mission log entries with timestamps and event types
   - `alien_races`: Wiki database of 80+ alien races with video generation prompts
+  - `items`: 25+ equippable items with stat modifiers and special effects
+  - `player_inventory`: Junction table for player's items with equipped status
+  - `skills`: 30+ skills across 5 trees with tier progression and prerequisites
+  - `player_skills`: Junction table for unlocked skills with rank tracking
+  - `alien_relationships`: Faction standings (-100 to +100) with 10 alien factions
+
+### RPG System
+- **Inventory System**: 6 item slots (weapon, armor, helmet, accessory, module, consumable)
+- **Item Rarities**: Common, Uncommon, Rare, Epic, Legendary with color-coded UI
+- **Stat Modifiers**: Items and skills provide bonuses to combat stats
+- **Skill Trees**: 5 categories (Combat, Diplomacy, Technology, Survival, Psionic)
+- **Skill Tiers**: 3-tier progression with prerequisites and max ranks
+- **Faction System**: 10 alien factions (Council, Hive, Syndicate, etc.) with relationship titles
+- **Effective Stats**: Combat stats dynamically calculated from base + equipment + skill bonuses
+- **API Endpoints**:
+  - `POST /api/rpg/seed` - Seed items and skills data
+  - `GET /api/rpg/items` - Get all item definitions
+  - `GET /api/rpg/skills` - Get all skill definitions
+  - `GET /api/rpg/inventory/:gameId` - Get player inventory
+  - `POST /api/rpg/inventory/:gameId/equip` - Equip an item
+  - `POST /api/rpg/inventory/:gameId/unequip` - Unequip an item
+  - `GET /api/rpg/skills/:gameId` - Get player unlocked skills
+  - `POST /api/rpg/skills/:gameId/unlock` - Unlock a skill
+  - `GET /api/rpg/relationships/:gameId` - Get faction standings
+  - `GET /api/rpg/stats/:gameId` - Get effective stats with bonuses
+  - `POST /api/rpg/starter-kit/:gameId` - Apply starter equipment
 
 ### Alien Races Wiki
 - **Categories**: Classic UFOlogy, Reptilian/Insectoid, Interdimensional, Humanoid/Hybrid, Ancient/Mythic, Sci-Fi Culture, Fringe Lore
