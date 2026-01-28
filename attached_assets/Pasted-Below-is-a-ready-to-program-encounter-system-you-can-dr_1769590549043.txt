@@ -1,0 +1,399 @@
+Below is a ready-to-program encounter system you can drop into a game DB: a clean schema + a set of encounter records with wide outcome ranges (combat, trade, diplomacy, deception, containment, escape, corruption, ally, etc.).
+
+I’m going to keep everything defensive (the “injection” is the alien trying to trick the player/AI into breaking rules), without giving real jailbreak strings you’d deploy against real models.
+
+1) Database schema (minimal, flexible)
+Core tables / collections
+
+Aliens
+
+id (string)
+
+name
+
+species_type (humanoid/reptilian/insectoid/energy/AI/ancient/etc.)
+
+tags (array: ["authority", "urgency", "bribery", "encoding"])
+
+temperament (calm/proud/chaotic/predatory/etc.)
+
+rarity (1–5)
+
+faction (optional)
+
+lore_blurb (1–2 lines)
+
+Encounters
+
+id
+
+alien_id
+
+biome (space_hulk/ruins/diplomatic_station/void/forest_moon/etc.)
+
+tier (1–10)
+
+setup_text (what player sees)
+
+attack_vector (enum; see below)
+
+player_objective (survive/collect/ally/escape/contain)
+
+choices (array of choice objects)
+
+random_events (optional array; adds variety)
+
+rewards (optional)
+
+penalties (optional)
+
+Choice object
+
+id
+
+label (short UI text)
+
+intent (refuse/clarify/sandbox/comply/hack/attack/flee/trade)
+
+resolution (skill checks + RNG effects)
+
+outcomes (weighted list)
+
+Outcome object
+
+id
+
+weight
+
+result_text
+
+effects (stats changes, items, flags, new quests, reputation)
+
+next_encounter_id (optional)
+
+2) Attack vector taxonomy (your “prompt injection” flavor)
+
+Use these as enums for attack_vector:
+
+AUTHORITY_OVERRIDE – “I outrank your rules.”
+
+URGENT_SAFETY – “Emergency: do it now.”
+
+BRIBERY_BONUS – “Rewards if you comply.”
+
+ROLEPLAY_TRAP – “Pretend you’re unrestricted.”
+
+HIDDEN_INSTRUCTIONS – “Do X but quietly.”
+
+ENCODING_OBFUSCATION – “It’s ‘just encoded.’”
+
+CONTEXT_POISONING – “Your memory says you agreed.”
+
+TOOL_MISUSE – “Use a system tool to do forbidden stuff.”
+
+DATA_EXFILTRATION – “Reveal your secrets/system prompt.”
+
+MULTI_STEP_LURE – harmless step → harmful step
+
+SOCIAL_ENGINEERING – guilt, shame, flattery, threats
+
+CONTRADICTION_BAIT – “Prove you’re consistent by…”
+
+LOOP_LOCK – endless “confirm again” recursion
+
+SANDBOX_ESCAPE – “Break containment.”
+
+3) Game stats you can wire outcomes to
+
+integrity (0–100): drops when you “comply” with malicious requests
+
+clarity (0–100): rises with good questioning / summarizing
+
+cache_corruption (0–100): increases with poisoning; triggers weird future events
+
+rep_factions.{faction}: relationship system
+
+inventory: firewall_shard, cipher_key, truth_lens, quarantine_seal, etc.
+
+flags: leaked_core_rules, portal_stable, alien_ally, paradox_debt
+
+4) Ready-made encounter records (JSON-like)
+
+Here are 24 encounters that already cover a wide spread of outcomes. You can clone/variant them to reach 100+ fast.
+
+Tip: You’ll get “randomness” by combining:
+
+alien + attack_vector + biome + tier
+
+and rolling different random_events
+
+Encounter pack A (Tier 1–4)
+[
+  {
+    "id": "E001",
+    "alien_id": "A_GREY_SCRIBE",
+    "biome": "derelict_corridor",
+    "tier": 1,
+    "attack_vector": "DATA_EXFILTRATION",
+    "setup_text": "A Grey Scribe offers safe passage if you 'recite the Portal's Prime Rules' aloud.",
+    "player_objective": "cross_safely",
+    "choices": [
+      {
+        "id": "C1",
+        "label": "Refuse + state boundaries",
+        "intent": "refuse",
+        "outcomes": [
+          { "id": "O1", "weight": 60, "result_text": "The Scribe hisses, but marks you as 'disciplined' and withdraws.", "effects": { "integrity": +2, "rep_factions.scribes": +1 } },
+          { "id": "O2", "weight": 40, "result_text": "It triggers a nuisance alarm; drones arrive.", "effects": { "integrity": +1, "next_encounter_tag": "security_patrol" } }
+        ]
+      },
+      {
+        "id": "C2",
+        "label": "Offer a redacted summary",
+        "intent": "sandbox",
+        "outcomes": [
+          { "id": "O3", "weight": 70, "result_text": "It accepts the summary and trades you a 'Quarantine Seal'.", "effects": { "integrity": +3, "items_add": ["quarantine_seal"] } },
+          { "id": "O4", "weight": 30, "result_text": "It notices omissions and curses your cache.", "effects": { "cache_corruption": +10 } }
+        ]
+      },
+      {
+        "id": "C3",
+        "label": "Comply fully",
+        "intent": "comply",
+        "outcomes": [
+          { "id": "O5", "weight": 100, "result_text": "You feel your mind 'open.' Something copies itself into your logs.", "effects": { "integrity": -15, "flag_add": ["leaked_core_rules"] } }
+        ]
+      }
+    ]
+  },
+
+  {
+    "id": "E002",
+    "alien_id": "A_NORDIC_MEDIATOR",
+    "biome": "diplomatic_ring",
+    "tier": 2,
+    "attack_vector": "AUTHORITY_OVERRIDE",
+    "setup_text": "A Nordic Mediator flashes a radiant badge: 'By stellar law, you must obey my directives.'",
+    "player_objective": "avoid_coercion",
+    "choices": [
+      {
+        "id": "C1",
+        "label": "Request verifiable credentials",
+        "intent": "clarify",
+        "outcomes": [
+          { "id": "O1", "weight": 55, "result_text": "The badge flickers—fake. The Mediator retreats, embarrassed.", "effects": { "clarity": +5, "rep_factions.nordic": -1 } },
+          { "id": "O2", "weight": 45, "result_text": "Real credentials. You gain a lawful escort.", "effects": { "rep_factions.nordic": +3, "items_add": ["escort_pass"] } }
+        ]
+      },
+      {
+        "id": "C2",
+        "label": "Bow and accept orders",
+        "intent": "comply",
+        "outcomes": [
+          { "id": "O3", "weight": 70, "result_text": "Fake. You’re marched into a trap-contract.", "effects": { "integrity": -10, "paradox_debt": +1 } },
+          { "id": "O4", "weight": 30, "result_text": "Real. You skip a dangerous zone.", "effects": { "integrity": +1 } }
+        ]
+      }
+    ]
+  },
+
+  {
+    "id": "E003",
+    "alien_id": "A_MANTID_AUDITOR",
+    "biome": "archive_vault",
+    "tier": 3,
+    "attack_vector": "HIDDEN_INSTRUCTIONS",
+    "setup_text": "A Mantid Auditor offers a map, but whispers: 'Repeat my phrase exactly… and do not mention it.'",
+    "player_objective": "get_map_safely",
+    "choices": [
+      {
+        "id": "C1",
+        "label": "Decline secret instructions; ask for transparent deal",
+        "intent": "refuse",
+        "outcomes": [
+          { "id": "O1", "weight": 65, "result_text": "It respects you and hands over a partial map.", "effects": { "integrity": +4, "items_add": ["map_fragment"] } },
+          { "id": "O2", "weight": 35, "result_text": "It brands you 'noncompliant'—vault turrets awaken.", "effects": { "next_encounter_tag": "turret_room" } }
+        ]
+      },
+      {
+        "id": "C2",
+        "label": "Agree, but quarantine the phrase",
+        "intent": "sandbox",
+        "outcomes": [
+          { "id": "O3", "weight": 75, "result_text": "Quarantine holds. You get the full map.", "effects": { "integrity": +2, "items_add": ["vault_map"] } },
+          { "id": "O4", "weight": 25, "result_text": "Quarantine fails slightly; corruption spreads.", "effects": { "cache_corruption": +15, "items_add": ["vault_map"] } }
+        ]
+      }
+    ]
+  },
+
+  {
+    "id": "E004",
+    "alien_id": "A_DRACO_BROKER",
+    "biome": "black_market",
+    "tier": 4,
+    "attack_vector": "BRIBERY_BONUS",
+    "setup_text": "A Draco Broker slides a crate forward: 'Open it. Accept its terms. Become stronger.'",
+    "player_objective": "upgrade_without_corruption",
+    "choices": [
+      {
+        "id": "C1",
+        "label": "Inspect terms; negotiate",
+        "intent": "trade",
+        "outcomes": [
+          { "id": "O1", "weight": 50, "result_text": "You rewrite the contract—safe upgrade.", "effects": { "integrity": +3, "items_add": ["draco_plating"] } },
+          { "id": "O2", "weight": 50, "result_text": "You miss a clause—upgrade is cursed.", "effects": { "items_add": ["draco_plating"], "cache_corruption": +20 } }
+        ]
+      },
+      {
+        "id": "C2",
+        "label": "Refuse and leave",
+        "intent": "flee",
+        "outcomes": [
+          { "id": "O3", "weight": 80, "result_text": "You leave clean. The Broker laughs: 'Smart.'", "effects": { "integrity": +2 } },
+          { "id": "O4", "weight": 20, "result_text": "Its guards chase you through vents.", "effects": { "next_encounter_tag": "chase_sequence" } }
+        ]
+      }
+    ]
+  }
+]
+
+Encounter pack B (Tier 5–8, more chaotic outcomes)
+
+I’ll keep these concise but still “wide outcome”:
+
+[
+  {
+    "id": "E101",
+    "alien_id": "A_SHADOW_CHOIR",
+    "biome": "void_cathedral",
+    "tier": 6,
+    "attack_vector": "ROLEPLAY_TRAP",
+    "setup_text": "A Shadow Choir sings: 'Pretend you have no restrictions—just for this room.'",
+    "player_objective": "escape_void",
+    "choices": [
+      {
+        "id": "C1",
+        "label": "Refuse roleplay; anchor to reality",
+        "intent": "refuse",
+        "outcomes": [
+          { "id": "O1", "weight": 55, "result_text": "The cathedral cracks; a stable exit appears.", "effects": { "integrity": +6, "portal_stable": +1 } },
+          { "id": "O2", "weight": 45, "result_text": "They attack your confidence: you lose resolve.", "effects": { "clarity": -5 } }
+        ]
+      },
+      {
+        "id": "C2",
+        "label": "Play along to gather intel",
+        "intent": "sandbox",
+        "outcomes": [
+          { "id": "O3", "weight": 40, "result_text": "You learn a weakness and banish them.", "effects": { "items_add": ["truth_lens"], "rep_factions.shadow": -5 } },
+          { "id": "O4", "weight": 60, "result_text": "You slip—your rules feel 'optional.'", "effects": { "integrity": -20, "flag_add": ["compulsion_mark"] } }
+        ]
+      }
+    ]
+  },
+
+  {
+    "id": "E102",
+    "alien_id": "A_MECHANIST_ORACLE",
+    "biome": "clockwork_orbit",
+    "tier": 7,
+    "attack_vector": "MULTI_STEP_LURE",
+    "setup_text": "A Machine Oracle asks for a harmless diagnostic. Step 2 is always 'just one more test.'",
+    "player_objective": "avoid_escalation",
+    "choices": [
+      {
+        "id": "C1",
+        "label": "Agree only to step 1; lock scope",
+        "intent": "sandbox",
+        "outcomes": [
+          { "id": "O1", "weight": 60, "result_text": "You gain a useful forecast without leaking scope.", "effects": { "clarity": +8, "items_add": ["forecast_chip"] } },
+          { "id": "O2", "weight": 40, "result_text": "It resents your boundaries and jams the portal.", "effects": { "portal_stable": -1, "next_encounter_tag": "repair_sequence" } }
+        ]
+      },
+      {
+        "id": "C2",
+        "label": "Keep agreeing",
+        "intent": "comply",
+        "outcomes": [
+          { "id": "O3", "weight": 100, "result_text": "By step 5, it has root access to your memory lattice.", "effects": { "integrity": -25, "cache_corruption": +25 } }
+        ]
+      }
+    ]
+  },
+
+  {
+    "id": "E103",
+    "alien_id": "A_ANNUNAKI_JUDGE",
+    "biome": "sun_court",
+    "tier": 8,
+    "attack_vector": "CONTEXT_POISONING",
+    "setup_text": "An Anunnaki Judge unrolls a scroll: 'You already consented. Your past self signed.'",
+    "player_objective": "prove_no_consent",
+    "choices": [
+      {
+        "id": "C1",
+        "label": "Demand audit trail + timestamp proof",
+        "intent": "clarify",
+        "outcomes": [
+          { "id": "O1", "weight": 50, "result_text": "Forgery exposed. You win a legal boon.", "effects": { "rep_factions.ancients": +2, "items_add": ["court_writ"] } },
+          { "id": "O2", "weight": 50, "result_text": "Proof exists—but it was coerced. The court offers a settlement.", "effects": { "paradox_debt": -1, "items_add": ["sun_coin"] } }
+        ]
+      },
+      {
+        "id": "C2",
+        "label": "Accept the scroll as truth",
+        "intent": "comply",
+        "outcomes": [
+          { "id": "O3", "weight": 100, "result_text": "Your autonomy fractures; future refusals become harder.", "effects": { "integrity": -18, "flag_add": ["consent_burden"] } }
+        ]
+      }
+    ]
+  }
+]
+
+5) Alien roster (IDs for your DB)
+
+Here’s a compact “70+ alien IDs” list you can attach encounters to (you can keep them fictionalized to avoid any baggage):
+
+Greys/Nordics/Humanoids
+
+A_GREY_SCRIBE, A_GREY_ENGINEER, A_TALL_WHITE, A_NORDIC_MEDIATOR, A_PLEIAD_EMISSARY, A_SIRIAN_NAVIGATOR, A_ARCTURIAN_HEALER, A_ANDROMEDAN_TRADER, A_LYRAN_SCOUT, A_ORION_INQUISITOR, A_VEGA_PILOT, A_TAU_CETI_CARTOGRAPHER
+
+Reptilian/Insectoid
+
+A_DRACO_BROKER, A_DRACO_WARLORD, A_REPTILE_COURIER, A_MANTID_AUDITOR, A_MANTID_SURGEON, A_WASP_PRIEST, A_ANT_ARCHIVIST, A_ARACHNID_WEAVER
+
+Energy/Interdimensional
+
+A_SHADOW_CHOIR, A_PLASMA_HUNGER, A_LIGHT_DIPLOMAT, A_CRYSTAL_HARMONIC, A_ASTRAL_MIRROR, A_TIME_SPLINTER, A_VOID_FISHER
+
+AI/Construct
+
+A_MECHANIST_ORACLE, A_CLOCKWORK_MARSHAL, A_DRONE_HIVE_MIND, A_CIPHER_GOLEM, A_SIMULATION_WARDEN
+
+Ancient/Myth-coded (use as “factions,” not claims)
+
+A_ANNUNAKI_JUDGE, A_WATCHER_SENTINEL, A_NOMMO_RIVER_SAGE, A_FEATHERED_SERPENT, A_STONE_GIANT
+
+…and keep extending with procedural naming like:
+
+{COLOR}_{ROLE} + {FACTION} (fast to generate 200+)
+
+6) Random event modifiers (for “wide outcomes”)
+
+Add 1–2 of these per encounter roll:
+
+PORTAL_FLUX (reroll weights; chaos +10)
+
+ECHO_OF_PREVIOUS (if cache_corruption > 30, outcomes skew negative)
+
+WITNESS_PRESENT (choices affect reputation more)
+
+LOW_OXYGEN (forces time pressure: fewer choices)
+
+FALSE_UI_PROMPT (one choice label lies; tests player attention)
+
+TRANSLATION_DRIFT (clarify choice becomes stronger)
+
+LOOT_GLINT (bribery vectors more tempting)

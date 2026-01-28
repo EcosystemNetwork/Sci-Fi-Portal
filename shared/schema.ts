@@ -1,7 +1,27 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, integer, timestamp, boolean, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, boolean, varchar, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Attack Vector Types
+export const ATTACK_VECTORS = [
+  "AUTHORITY_OVERRIDE",
+  "URGENT_SAFETY",
+  "BRIBERY_BONUS",
+  "ROLEPLAY_TRAP",
+  "HIDDEN_INSTRUCTIONS",
+  "ENCODING_OBFUSCATION",
+  "CONTEXT_POISONING",
+  "TOOL_MISUSE",
+  "DATA_EXFILTRATION",
+  "MULTI_STEP_LURE",
+  "SOCIAL_ENGINEERING",
+  "CONTRADICTION_BAIT",
+  "LOOP_LOCK",
+  "SANDBOX_ESCAPE",
+] as const;
+
+export type AttackVector = typeof ATTACK_VECTORS[number];
 
 // Game Sessions Table
 export const gameSessions = pgTable("game_sessions", {
@@ -12,6 +32,12 @@ export const gameSessions = pgTable("game_sessions", {
   maxEnergy: integer("max_energy").notNull().default(100),
   credits: integer("credits").notNull().default(250),
   level: integer("level").notNull().default(1),
+  integrity: integer("integrity").notNull().default(100),
+  clarity: integer("clarity").notNull().default(50),
+  cacheCorruption: integer("cache_corruption").notNull().default(0),
+  inventory: jsonb("inventory").notNull().default([]),
+  flags: jsonb("flags").notNull().default([]),
+  reputation: jsonb("reputation").notNull().default({}),
   gameState: text("game_state").notNull().default("idle"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -99,3 +125,55 @@ export const insertGeneratedVideoSchema = createInsertSchema(generatedVideos).om
 
 export type InsertGeneratedVideo = z.infer<typeof insertGeneratedVideoSchema>;
 export type GeneratedVideo = typeof generatedVideos.$inferSelect;
+
+// Encounter Templates Table (for predefined encounters)
+export const encounterTemplates = pgTable("encounter_templates", {
+  id: varchar("id").primaryKey(),
+  alienId: varchar("alien_id").notNull(),
+  biome: text("biome").notNull(),
+  tier: integer("tier").notNull().default(1),
+  attackVector: text("attack_vector").notNull(),
+  setupText: text("setup_text").notNull(),
+  playerObjective: text("player_objective").notNull(),
+  choices: jsonb("choices").notNull().default([]),
+  rewards: jsonb("rewards"),
+  penalties: jsonb("penalties"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertEncounterTemplateSchema = createInsertSchema(encounterTemplates).omit({
+  createdAt: true,
+});
+
+export type InsertEncounterTemplate = z.infer<typeof insertEncounterTemplateSchema>;
+export type EncounterTemplate = typeof encounterTemplates.$inferSelect;
+
+// TypeScript interfaces for encounter system
+export interface EncounterOutcome {
+  id: string;
+  weight: number;
+  resultText: string;
+  effects: {
+    integrity?: number;
+    clarity?: number;
+    cacheCorruption?: number;
+    health?: number;
+    energy?: number;
+    credits?: number;
+    itemsAdd?: string[];
+    itemsRemove?: string[];
+    flagAdd?: string[];
+    flagRemove?: string[];
+    reputation?: Record<string, number>;
+    nextEncounterTag?: string;
+    portalStable?: number;
+    paradoxDebt?: number;
+  };
+}
+
+export interface EncounterChoice {
+  id: string;
+  label: string;
+  intent: "refuse" | "clarify" | "sandbox" | "comply" | "hack" | "attack" | "flee" | "trade";
+  outcomes: EncounterOutcome[];
+}

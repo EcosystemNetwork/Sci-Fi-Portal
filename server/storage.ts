@@ -12,11 +12,14 @@ import {
   type InsertAlienRace,
   type GeneratedVideo,
   type InsertGeneratedVideo,
+  type EncounterTemplate,
+  type InsertEncounterTemplate,
   gameSessions,
   encounters,
   eventLogs,
   alienRaces,
   generatedVideos,
+  encounterTemplates,
 } from "@shared/schema";
 
 const client = new pg.Client({
@@ -54,6 +57,16 @@ export interface IStorage {
   createGeneratedVideo(video: InsertGeneratedVideo): Promise<GeneratedVideo>;
   getAllGeneratedVideos(): Promise<GeneratedVideo[]>;
   getVideoByAlienName(alienName: string): Promise<GeneratedVideo | undefined>;
+
+  // Encounter Templates
+  createEncounterTemplate(template: InsertEncounterTemplate): Promise<EncounterTemplate>;
+  getAllEncounterTemplates(): Promise<EncounterTemplate[]>;
+  getEncounterTemplateById(id: string): Promise<EncounterTemplate | undefined>;
+  getRandomEncounterTemplate(tier?: number): Promise<EncounterTemplate | undefined>;
+  getEncounterTemplateCount(): Promise<number>;
+
+  // Update game session stats
+  updateGameStats(gameId: string, updates: Partial<GameSession>): Promise<GameSession>;
 }
 
 export class DbStorage implements IStorage {
@@ -159,6 +172,46 @@ export class DbStorage implements IStorage {
   async getVideoByAlienName(alienName: string): Promise<GeneratedVideo | undefined> {
     const [video] = await db.select().from(generatedVideos).where(eq(generatedVideos.alienName, alienName));
     return video;
+  }
+
+  // Encounter Templates
+  async createEncounterTemplate(template: InsertEncounterTemplate): Promise<EncounterTemplate> {
+    const [newTemplate] = await db.insert(encounterTemplates).values(template).returning();
+    return newTemplate;
+  }
+
+  async getAllEncounterTemplates(): Promise<EncounterTemplate[]> {
+    return await db.select().from(encounterTemplates).orderBy(encounterTemplates.tier);
+  }
+
+  async getEncounterTemplateById(id: string): Promise<EncounterTemplate | undefined> {
+    const [template] = await db.select().from(encounterTemplates).where(eq(encounterTemplates.id, id));
+    return template;
+  }
+
+  async getRandomEncounterTemplate(tier?: number): Promise<EncounterTemplate | undefined> {
+    let templates: EncounterTemplate[];
+    if (tier) {
+      templates = await db.select().from(encounterTemplates).where(eq(encounterTemplates.tier, tier));
+    } else {
+      templates = await db.select().from(encounterTemplates);
+    }
+    if (templates.length === 0) return undefined;
+    return templates[Math.floor(Math.random() * templates.length)];
+  }
+
+  async getEncounterTemplateCount(): Promise<number> {
+    const allTemplates = await db.select().from(encounterTemplates);
+    return allTemplates.length;
+  }
+
+  // Update game session stats
+  async updateGameStats(gameId: string, updates: Partial<GameSession>): Promise<GameSession> {
+    const [updated] = await db.update(gameSessions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(gameSessions.id, gameId))
+      .returning();
+    return updated;
   }
 }
 
