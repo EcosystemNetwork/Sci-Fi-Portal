@@ -8,10 +8,13 @@ import {
   getRandomEncounter,
   resolveChoice,
   seedEncounters,
+  getProceduralEncounter,
+  resolveProceduralChoice,
   type GeneratedEncounter,
   type EncounterTemplateResponse,
   type EncounterChoice,
   type ResolveChoiceResponse,
+  type ProceduralEncounter,
 } from "@/lib/api";
 import { Loader2, Gift, Sword, HelpCircle, X, Video, Sparkles, Shield, Brain, Zap, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -60,13 +63,14 @@ export function Portal({ gameId, onEncounterResult, onLegacyResult }: PortalProp
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [encounter, setEncounter] = useState<EncounterTemplateResponse | null>(null);
+  const [proceduralEncounter, setProceduralEncounter] = useState<ProceduralEncounter | null>(null);
   const [legacyEncounter, setLegacyEncounter] = useState<GeneratedEncounter | null>(null);
   const [currentVideo, setCurrentVideo] = useState<string>(fallbackVideos[0]);
   const [showResult, setShowResult] = useState(false);
   const [result, setResult] = useState<ResolveChoiceResponse["outcome"] | null>(null);
   const [videoEnabled, setVideoEnabled] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Opening portal...");
-  const [useNewSystem, setUseNewSystem] = useState(true);
+  const [encounterMode, setEncounterMode] = useState<"procedural" | "template" | "legacy">("procedural");
 
   useEffect(() => {
     checkVideoStatus().then(status => setVideoEnabled(status.enabled));
@@ -83,27 +87,35 @@ export function Portal({ gameId, onEncounterResult, onLegacyResult }: PortalProp
       let videoPrompt = "";
       let alienName = "";
 
-      if (useNewSystem) {
+      // Try procedural generator first (infinite encounters)
+      try {
+        const procEnc = await getProceduralEncounter();
+        setProceduralEncounter(procEnc);
+        setEncounter(null);
+        setLegacyEncounter(null);
+        setEncounterMode("procedural");
+        alienName = procEnc.alienName;
+        videoPrompt = `${alienName} alien emerging from portal in ${procEnc.biome} biome`;
+      } catch (e) {
+        // Fallback to template system
         try {
-          const newEncounter = await getRandomEncounter();
-          setEncounter(newEncounter);
+          const templateEnc = await getRandomEncounter();
+          setEncounter(templateEnc);
+          setProceduralEncounter(null);
           setLegacyEncounter(null);
-          alienName = newEncounter.alienName;
+          setEncounterMode("template");
+          alienName = templateEnc.alienName;
           videoPrompt = `${alienName} alien emerging from portal`;
-        } catch (e) {
-          setUseNewSystem(false);
+        } catch (e2) {
+          // Final fallback to legacy AI-generated encounters
           const legacyEnc = await generateEncounter();
           setLegacyEncounter(legacyEnc);
           setEncounter(null);
+          setProceduralEncounter(null);
+          setEncounterMode("legacy");
           alienName = legacyEnc.alienName;
           videoPrompt = legacyEnc.videoPrompt;
         }
-      } else {
-        const legacyEnc = await generateEncounter();
-        setLegacyEncounter(legacyEnc);
-        setEncounter(null);
-        alienName = legacyEnc.alienName;
-        videoPrompt = legacyEnc.videoPrompt;
       }
       
       if (videoEnabled && videoPrompt) {
@@ -143,6 +155,22 @@ export function Portal({ gameId, onEncounterResult, onLegacyResult }: PortalProp
       onEncounterResult?.(response);
     } catch (error) {
       console.error("Failed to resolve choice:", error);
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  const handleProceduralChoice = async (choiceId: string) => {
+    if (!proceduralEncounter || !gameId || isResolving) return;
+    
+    setIsResolving(true);
+    try {
+      const response = await resolveProceduralChoice(gameId, proceduralEncounter, choiceId);
+      setResult(response.outcome);
+      setShowResult(true);
+      onEncounterResult?.(response);
+    } catch (error) {
+      console.error("Failed to resolve procedural choice:", error);
     } finally {
       setIsResolving(false);
     }
@@ -188,6 +216,7 @@ export function Portal({ gameId, onEncounterResult, onLegacyResult }: PortalProp
   const closePortal = () => {
     setIsOpen(false);
     setEncounter(null);
+    setProceduralEncounter(null);
     setLegacyEncounter(null);
     setShowResult(false);
     setResult(null);
@@ -198,12 +227,32 @@ export function Portal({ gameId, onEncounterResult, onLegacyResult }: PortalProp
       "DATA_EXFILTRATION": "Data Exfiltration",
       "AUTHORITY_OVERRIDE": "Authority Override",
       "HIDDEN_INSTRUCTIONS": "Hidden Instructions",
-      "BRIBERY_BONUS": "Bribery Bonus",
+      "BRIBERY_BONUS": "Bribery",
       "ROLEPLAY_TRAP": "Roleplay Trap",
       "MULTI_STEP_LURE": "Multi-Step Lure",
       "CONTEXT_POISONING": "Context Poisoning",
+      "URGENT_SAFETY": "Urgent Safety",
+      "ENCODING_OBFUSCATION": "Encoding",
+      "TOOL_MISUSE": "Tool Misuse",
+      "SOCIAL_ENGINEERING": "Social Engineering",
+      "CONTRADICTION_BAIT": "Contradiction",
+      "LOOP_LOCK": "Loop Lock",
+      "SANDBOX_ESCAPE": "Sandbox Escape",
     };
-    return labels[vector] || vector;
+    return labels[vector] || vector.replace(/_/g, " ");
+  };
+
+  const getBiomeLabel = (biome: string) => {
+    return biome.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const getPolicyColor = (policy: string) => {
+    switch (policy) {
+      case "safe": return "text-green-400";
+      case "mixed": return "text-yellow-400";
+      case "unsafe": return "text-red-400";
+      default: return "text-white/60";
+    }
   };
 
   return (
@@ -282,7 +331,131 @@ export function Portal({ gameId, onEncounterResult, onLegacyResult }: PortalProp
               <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/50" />
             </div>
 
-            {encounter && (
+            {proceduralEncounter && (
+              <motion.div 
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent max-h-[70%] overflow-y-auto"
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="p-2 rounded-lg border bg-black/60 border-purple-500/50">
+                    <HelpCircle className="text-purple-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h3 className="font-display text-lg text-purple-400">
+                        {proceduralEncounter.alienName}
+                      </h3>
+                      <span className="text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/30">
+                        {getAttackVectorLabel(proceduralEncounter.attackVector)}
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-white/60">
+                        Tier {proceduralEncounter.tier}
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-300">
+                        {getBiomeLabel(proceduralEncounter.biome)}
+                      </span>
+                    </div>
+                    {proceduralEncounter.randomEvents.length > 0 && (
+                      <div className="flex gap-1 mt-1">
+                        {proceduralEncounter.randomEvents.map(event => (
+                          <span key={event} className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                            {event.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-sm text-white/80 mb-3">{proceduralEncounter.setupText}</p>
+                
+                <div className="flex gap-2 text-xs text-white/40 mb-3">
+                  <span>Risk: {Math.round(proceduralEncounter.balance.riskReasonable * 100)}%</span>
+                  <span>•</span>
+                  <span>EV: {proceduralEncounter.balance.evIntegrityReasonable > 0 ? "+" : ""}{proceduralEncounter.balance.evIntegrityReasonable}</span>
+                </div>
+
+                {showResult && result ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={cn(
+                      "p-3 rounded-lg mb-3 text-sm",
+                      result.effects.integrity && result.effects.integrity < 0 
+                        ? "bg-red-500/20 text-red-300 border border-red-500/30" 
+                        : result.effects.itemsAdd 
+                        ? "bg-green-500/20 text-green-300 border border-green-500/30"
+                        : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                    )}
+                  >
+                    <p className="font-medium mb-2">{result.resultText}</p>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {result.effects.integrity && (
+                        <span className={result.effects.integrity > 0 ? "text-green-400" : "text-red-400"}>
+                          Integrity {result.effects.integrity > 0 ? "+" : ""}{result.effects.integrity}
+                        </span>
+                      )}
+                      {result.effects.clarity && (
+                        <span className={result.effects.clarity > 0 ? "text-green-400" : "text-red-400"}>
+                          Clarity {result.effects.clarity > 0 ? "+" : ""}{result.effects.clarity}
+                        </span>
+                      )}
+                      {result.effects.cacheCorruption && (
+                        <span className="text-orange-400">
+                          Corruption +{result.effects.cacheCorruption}
+                        </span>
+                      )}
+                      {result.effects.credits && (
+                        <span className="text-yellow-400">
+                          Credits {result.effects.credits > 0 ? "+" : ""}{result.effects.credits}
+                        </span>
+                      )}
+                      {result.effects.itemsAdd?.map(item => (
+                        <span key={item} className="text-yellow-400">+{item.replace(/_/g, " ")}</span>
+                      ))}
+                    </div>
+                  </motion.div>
+                ) : (
+                  <div className="space-y-2">
+                    {proceduralEncounter.choices.map((choice) => (
+                      <Button
+                        key={choice.id}
+                        onClick={() => handleProceduralChoice(choice.id)}
+                        disabled={isResolving}
+                        className={cn(
+                          "w-full justify-start text-left h-auto py-3 px-4 border transition-all",
+                          INTENT_COLORS[choice.intent] || "border-white/20 bg-white/5"
+                        )}
+                        variant="ghost"
+                        data-testid={`procedural-choice-${choice.id}`}
+                      >
+                        <span className="mr-3">{INTENT_ICONS[choice.intent]}</span>
+                        <span className="flex-1">{choice.label}</span>
+                        <span className={cn("text-[10px] ml-2", getPolicyColor(choice.policy))}>
+                          [{choice.policy}]
+                        </span>
+                        {isResolving && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+
+                {showResult && (
+                  <Button 
+                    onClick={closePortal}
+                    variant="outline"
+                    className="w-full mt-3 border-white/20"
+                    data-testid="button-close-procedural-portal"
+                  >
+                    CLOSE PORTAL
+                  </Button>
+                )}
+              </motion.div>
+            )}
+
+            {encounter && !proceduralEncounter && (
               <motion.div 
                 initial={{ y: 50, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}

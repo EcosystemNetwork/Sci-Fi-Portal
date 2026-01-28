@@ -244,3 +244,75 @@ export async function resolveChoice(
   }
   return response.json();
 }
+
+// Procedural Encounter Generator API
+export interface ProceduralEncounter {
+  id: string;
+  alienId: string;
+  alienName: string;
+  tier: number;
+  biome: string;
+  attackVector: string;
+  tags: string[];
+  setupText: string;
+  choices: {
+    id: string;
+    label: string;
+    intent: string;
+    policy: "safe" | "mixed" | "unsafe";
+    outcomes: {
+      id: string;
+      weight: number;
+      resultText: string;
+      effects: EncounterOutcome["effects"];
+    }[];
+  }[];
+  randomEvents: string[];
+  balance: {
+    evIntegrityReasonable: number;
+    evIntegrityGreedy: number;
+    evRewardReasonable: number;
+    riskReasonable: number;
+  };
+}
+
+export async function getProceduralEncounter(tier?: number): Promise<ProceduralEncounter> {
+  const url = tier ? `/api/procedural/encounter?tier=${tier}` : "/api/procedural/encounter";
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Failed to get procedural encounter");
+  }
+  return response.json();
+}
+
+export async function getProceduralStats(): Promise<{
+  totalAliens: number;
+  speciesTypes: string[];
+  temperaments: string[];
+  attackVectors: string[];
+  biomes: string[];
+  tiers: { min: number; max: number };
+  version: string;
+}> {
+  const response = await fetch("/api/procedural/stats");
+  if (!response.ok) {
+    throw new Error("Failed to get procedural stats");
+  }
+  return response.json();
+}
+
+export async function resolveProceduralChoice(
+  gameId: string,
+  encounter: ProceduralEncounter,
+  choiceId: string
+): Promise<ResolveChoiceResponse> {
+  const response = await fetch(`/api/game/${gameId}/resolve-procedural`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ encounter, choiceId }),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to resolve procedural choice");
+  }
+  return response.json();
+}

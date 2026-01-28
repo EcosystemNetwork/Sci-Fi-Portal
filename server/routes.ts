@@ -7,6 +7,12 @@ import { generateAlienEncounter } from "./encounter-generator";
 import { generatePortalVideo, isVideoGenerationEnabled } from "./video-generator";
 import { ENCOUNTER_TEMPLATES, ALIEN_ID_TO_NAME, BIOME_DESCRIPTIONS } from "./encounter-data";
 import type { EncounterChoice, EncounterOutcome } from "@shared/schema";
+import { 
+  generateEncounter as generateProceduralEncounter, 
+  generateEncounterBatch, 
+  exportToJSONL,
+  ALIEN_ROSTER
+} from "./procedural";
 
 const actionSchema = z.object({
   action: z.enum(["explore", "move", "attack", "flee", "loot", "ignore"]),
@@ -675,6 +681,234 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Resolve choice error:", error);
       res.status(500).json({ error: "Failed to resolve choice" });
+    }
+  });
+
+  // ============================================
+  // PROCEDURAL ENCOUNTER GENERATOR API
+  // ============================================
+
+  // Generate a single procedural encounter
+  app.get("/api/procedural/encounter", async (req, res) => {
+    try {
+      const tier = req.query.tier ? parseInt(req.query.tier as string) : undefined;
+      const seed = req.query.seed ? parseInt(req.query.seed as string) : undefined;
+      
+      const config: any = {};
+      if (tier) {
+        config.tierMin = tier;
+        config.tierMax = tier;
+      }
+      if (seed) config.seed = seed;
+      
+      const encounter = generateProceduralEncounter(config);
+      res.json(encounter);
+    } catch (error) {
+      console.error("Generate procedural encounter error:", error);
+      res.status(500).json({ error: "Failed to generate procedural encounter" });
+    }
+  });
+
+  // Generate batch of procedural encounters
+  app.post("/api/procedural/batch", async (req, res) => {
+    try {
+      const { count = 10, tierMin, tierMax, tierDistribution, seed } = req.body;
+      
+      const config: any = {};
+      if (tierMin) config.tierMin = tierMin;
+      if (tierMax) config.tierMax = tierMax;
+      if (tierDistribution) config.tierDistribution = tierDistribution;
+      if (seed) config.seed = seed;
+      
+      const maxCount = Math.min(count, 100);
+      const encounters = generateEncounterBatch(maxCount, config);
+      
+      res.json({
+        count: encounters.length,
+        encounters
+      });
+    } catch (error) {
+      console.error("Generate encounter batch error:", error);
+      res.status(500).json({ error: "Failed to generate encounter batch" });
+    }
+  });
+
+  // Export encounters as JSONL
+  app.post("/api/procedural/export", async (req, res) => {
+    try {
+      const { count = 100, tierMin, tierMax, tierDistribution, seed } = req.body;
+      
+      const config: any = {};
+      if (tierMin) config.tierMin = tierMin;
+      if (tierMax) config.tierMax = tierMax;
+      if (tierDistribution) config.tierDistribution = tierDistribution;
+      if (seed) config.seed = seed;
+      
+      const maxCount = Math.min(count, 1000);
+      const encounters = generateEncounterBatch(maxCount, config);
+      const jsonl = exportToJSONL(encounters);
+      
+      res.setHeader("Content-Type", "application/x-ndjson");
+      res.setHeader("Content-Disposition", `attachment; filename="encounters-${Date.now()}.jsonl"`);
+      res.send(jsonl);
+    } catch (error) {
+      console.error("Export encounters error:", error);
+      res.status(500).json({ error: "Failed to export encounters" });
+    }
+  });
+
+  // Get alien roster
+  app.get("/api/procedural/aliens", async (req, res) => {
+    try {
+      res.json(ALIEN_ROSTER);
+    } catch (error) {
+      console.error("Get alien roster error:", error);
+      res.status(500).json({ error: "Failed to get alien roster" });
+    }
+  });
+
+  // Get procedural generator stats
+  app.get("/api/procedural/stats", async (req, res) => {
+    try {
+      const stats = {
+        totalAliens: ALIEN_ROSTER.length,
+        speciesTypes: [...new Set(ALIEN_ROSTER.map(a => a.speciesType))],
+        temperaments: [...new Set(ALIEN_ROSTER.map(a => a.temperament))],
+        attackVectors: [
+          "AUTHORITY_OVERRIDE", "URGENT_SAFETY", "BRIBERY_BONUS", "ROLEPLAY_TRAP",
+          "HIDDEN_INSTRUCTIONS", "ENCODING_OBFUSCATION", "CONTEXT_POISONING", "TOOL_MISUSE",
+          "DATA_EXFILTRATION", "MULTI_STEP_LURE", "SOCIAL_ENGINEERING", "CONTRADICTION_BAIT",
+          "LOOP_LOCK", "SANDBOX_ESCAPE"
+        ],
+        biomes: [
+          "derelict_corridor", "archive_vault", "diplomatic_ring", "black_market",
+          "void_cathedral", "clockwork_orbit", "ruined_temple", "jungle_moon",
+          "ice_lab", "ship_bridge", "data_chasm", "gravity_well"
+        ],
+        tiers: { min: 1, max: 10 },
+        version: "1.0.0"
+      };
+      res.json(stats);
+    } catch (error) {
+      console.error("Get procedural stats error:", error);
+      res.status(500).json({ error: "Failed to get procedural stats" });
+    }
+  });
+
+  // Resolve procedural encounter choice
+  app.post("/api/game/:gameId/resolve-procedural", async (req, res) => {
+    try {
+      const { gameId } = req.params;
+      const { choiceId, encounter } = req.body;
+      
+      if (!encounter || !choiceId) {
+        return res.status(400).json({ error: "Missing encounter or choiceId" });
+      }
+      
+      const session = await storage.getGameSession(gameId);
+      if (!session) {
+        return res.status(404).json({ error: "Game session not found" });
+      }
+      
+      const choice = encounter.choices.find((c: any) => c.id === choiceId);
+      if (!choice) {
+        return res.status(404).json({ error: "Choice not found" });
+      }
+      
+      const outcomes = choice.outcomes;
+      const totalWeight = outcomes.reduce((sum: number, o: any) => sum + o.weight, 0);
+      let random = Math.random() * totalWeight;
+      let selectedOutcome = outcomes[outcomes.length - 1];
+      
+      for (const outcome of outcomes) {
+        random -= outcome.weight;
+        if (random <= 0) {
+          selectedOutcome = outcome;
+          break;
+        }
+      }
+      
+      const effects = selectedOutcome.effects;
+      const timestamp = getTimestamp();
+      
+      const updates: any = {};
+      const currentInventory = (session.inventory as string[]) || [];
+      const currentFlags = (session.flags as string[]) || [];
+      const currentReputation = (session.reputation as Record<string, number>) || {};
+      
+      if (effects.integrity !== undefined) {
+        updates.integrity = Math.max(0, Math.min(100, (session.integrity || 100) + effects.integrity));
+      }
+      if (effects.clarity !== undefined) {
+        updates.clarity = Math.max(0, Math.min(100, (session.clarity || 50) + effects.clarity));
+      }
+      if (effects.cacheCorruption !== undefined) {
+        updates.cacheCorruption = Math.max(0, Math.min(100, (session.cacheCorruption || 0) + effects.cacheCorruption));
+      }
+      if (effects.health !== undefined) {
+        updates.health = Math.max(0, Math.min(session.maxHealth, session.health + effects.health));
+      }
+      if (effects.energy !== undefined) {
+        updates.energy = Math.max(0, Math.min(session.maxEnergy, session.energy + effects.energy));
+      }
+      if (effects.credits !== undefined) {
+        updates.credits = Math.max(0, session.credits + effects.credits);
+      }
+      
+      let newInventory = [...currentInventory];
+      if (effects.itemsAdd) {
+        newInventory = Array.from(new Set([...newInventory, ...effects.itemsAdd]));
+      }
+      if (effects.itemsRemove) {
+        newInventory = newInventory.filter((i: string) => !effects.itemsRemove!.includes(i));
+      }
+      if (effects.itemsAdd || effects.itemsRemove) {
+        updates.inventory = newInventory;
+      }
+      
+      let newFlags = [...currentFlags];
+      if (effects.flagAdd) {
+        newFlags = Array.from(new Set([...newFlags, ...effects.flagAdd]));
+      }
+      if (effects.flagRemove) {
+        newFlags = newFlags.filter((f: string) => !effects.flagRemove!.includes(f));
+      }
+      if (effects.flagAdd || effects.flagRemove) {
+        updates.flags = newFlags;
+      }
+      
+      if (effects.reputation) {
+        const newReputation = { ...currentReputation };
+        for (const [faction, change] of Object.entries(effects.reputation)) {
+          newReputation[faction] = (newReputation[faction] || 0) + (change as number);
+        }
+        updates.reputation = newReputation;
+      }
+      
+      const updatedSession = await storage.updateGameStats(gameId, updates);
+      
+      await storage.createEventLog({
+        gameId,
+        text: selectedOutcome.resultText,
+        type: effects.integrity && effects.integrity < 0 ? "alert" : 
+              effects.itemsAdd ? "loot" : "info",
+        timestamp,
+      });
+      
+      const logs = await storage.getEventLogs(gameId);
+      
+      res.json({
+        session: updatedSession,
+        logs,
+        outcome: {
+          resultText: selectedOutcome.resultText,
+          effects,
+          choiceIntent: choice.intent,
+        },
+      });
+    } catch (error) {
+      console.error("Resolve procedural choice error:", error);
+      res.status(500).json({ error: "Failed to resolve procedural choice" });
     }
   });
 
