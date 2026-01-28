@@ -51,17 +51,26 @@ let playerSkills: any;
 let alienRelationships: any;
 
 if (usePostgres) {
-  // PostgreSQL mode
+  // PostgreSQL mode - use Pool for better connection management in serverless
   const { drizzle } = await import("drizzle-orm/node-postgres");
   const pg = await import("pg");
   const schema = await import("@shared/schema");
   
-  const client = new pg.default.Client({
+  // Use Pool instead of Client for better connection lifecycle management
+  // Pool handles connection retries and is more suitable for serverless environments
+  const pool = new pg.default.Pool({
     connectionString: process.env.DATABASE_URL,
+    max: 10, // Maximum number of clients in the pool
+    idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+    connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection cannot be established
   });
   
-  await client.connect();
-  db = drizzle(client);
+  // Handle pool errors to prevent unhandled rejections
+  pool.on('error', (err) => {
+    console.error('Unexpected PostgreSQL pool error:', err);
+  });
+  
+  db = drizzle(pool);
   
   // Use PostgreSQL schema tables
   gameSessions = schema.gameSessions;
@@ -76,7 +85,7 @@ if (usePostgres) {
   playerSkills = schema.playerSkills;
   alienRelationships = schema.alienRelationships;
   
-  console.log("📊 Connected to PostgreSQL database");
+  console.log("📊 PostgreSQL pool initialized");
 } else {
   // SQLite mode for local development
   const { drizzle } = await import("drizzle-orm/better-sqlite3");
