@@ -45,10 +45,10 @@ export default function Home() {
         {/* Logo */}
         <div className="p-5 border-b border-primary/10">
           <h1 className="font-display text-xl font-bold tracking-tight">
-            <span className="text-white">VOID</span>
-            <span className="text-primary text-glow">WALKER</span>
+            <span className="text-white">SPACE</span>
+            <span className="text-primary text-glow">BASES</span>
           </h1>
-          <p className="text-[10px] text-muted-foreground font-mono mt-1 tracking-[0.3em]">PROTOCOL</p>
+          <p className="text-[10px] text-muted-foreground font-mono mt-1 tracking-[0.3em]">COMMAND CENTER</p>
         </div>
 
         {/* Menu */}

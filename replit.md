@@ -1,8 +1,8 @@
-# Void Walker: Protocol
+# Space Bases
 
 ## Overview
 
-Void Walker: Protocol is a sci-fi portal adventure game built as a full-stack web application. Players survive quantum jumps through a procedural encounter system, managing health, energy, and credits while exploring sectors and engaging with various encounters (combat, loot, exploration).
+Space Bases is a sci-fi portal adventure game built as a full-stack web application. Players build their space empire through a procedural encounter system, managing combat stats, credits, and resources while exploring sectors and engaging with various alien encounters.
 
 The application follows a client-server architecture with a React frontend and Express backend, using PostgreSQL for persistent game state storage.
 

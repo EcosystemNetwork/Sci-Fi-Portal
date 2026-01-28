@@ -25,7 +25,7 @@ export function GameLayout({ children, className }: GameLayoutProps) {
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <span className="font-display font-bold text-sm tracking-wider text-white">
-              VOID<span className="text-primary">WALKER</span>
+              SPACE<span className="text-primary">BASES</span>
             </span>
           </div>
         </div>
