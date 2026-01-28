@@ -85,3 +85,24 @@ export async function getWikiStats(): Promise<WikiStats> {
   }
   return response.json();
 }
+
+// AI Encounter Generation
+export interface GeneratedEncounter {
+  alienName: string;
+  alienCategory: string;
+  encounterType: "friendly" | "hostile" | "mysterious";
+  title: string;
+  description: string;
+  dialogue: string;
+  giftName?: string;
+  giftDescription?: string;
+  videoPrompt: string;
+}
+
+export async function generateEncounter(): Promise<GeneratedEncounter> {
+  const response = await fetch("/api/encounter/generate");
+  if (!response.ok) {
+    throw new Error("Failed to generate encounter");
+  }
+  return response.json();
+}

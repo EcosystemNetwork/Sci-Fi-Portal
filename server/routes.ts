@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { alienRaceSeedData } from "./seed-aliens";
+import { generateAlienEncounter } from "./encounter-generator";
 
 const actionSchema = z.object({
   action: z.enum(["explore", "move", "attack", "flee", "loot", "ignore"]),
@@ -364,6 +365,19 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get wiki stats error:", error);
       res.status(500).json({ error: "Failed to get wiki stats" });
+    }
+  });
+
+  // ===== AI ENCOUNTER GENERATION =====
+
+  // Generate a random alien encounter using AI
+  app.get("/api/encounter/generate", async (req, res) => {
+    try {
+      const encounter = await generateAlienEncounter();
+      res.json(encounter);
+    } catch (error) {
+      console.error("Generate encounter error:", error);
+      res.status(500).json({ error: "Failed to generate encounter" });
     }
   });
 

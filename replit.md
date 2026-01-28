@@ -44,6 +44,13 @@ Preferred communication style: Simple, everyday language.
   - `POST /api/wiki/aliens/seed` - Seed the database
   - `GET /api/wiki/stats` - Get wiki statistics
 
+### AI Encounter Generation
+- **Integration**: Gemini AI via Replit AI Integrations (no API key required, billed to credits)
+- **API Endpoints**:
+  - `GET /api/encounter/generate` - Generate a random alien encounter with AI-crafted dialogue and gifts
+- **Sample Videos**: Pre-generated alien portal videos in `client/src/assets/videos/`
+  - arcturian-portal.mp4, mantis-portal.mp4, grey-portal.mp4
+
 ### Key Design Patterns
 - **Shared Schema**: Database schema defined in `shared/schema.ts`, accessible to both client and server
 - **Type Safety**: Full TypeScript coverage with inferred types from Drizzle schema
