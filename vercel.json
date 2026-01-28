@@ -1,0 +1,27 @@
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "dist/index.mjs",
+            "use": "@vercel/node"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/assets/(.*)",
+            "dest": "/dist/public/assets/$1"
+        },
+        {
+            "src": "/favicon.png",
+            "dest": "/dist/public/favicon.png"
+        },
+        {
+            "src": "/opengraph.jpg",
+            "dest": "/dist/public/opengraph.jpg"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "/dist/index.mjs"
+        }
+    ]
+}
