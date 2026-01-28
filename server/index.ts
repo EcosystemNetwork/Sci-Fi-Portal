@@ -62,7 +62,8 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
+// Initialize the app and return a promise
+async function initializeApp() {
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
@@ -81,7 +82,10 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
+  // In Vercel, static files are served by Vercel's CDN, not the Express app
+  if (process.env.VERCEL) {
+    // Vercel handles static files separately via CDN
+  } else if (process.env.NODE_ENV === "production") {
     serveStatic(app);
   } else {
     const { setupVite } = await import("./vite");
@@ -102,8 +106,14 @@ app.use((req, res, next) => {
       },
     );
   }
-})();
 
-// Export the app for Vercel serverless functions
+  return app;
+}
+
+// Export the initialization promise for Vercel serverless functions
+export const appPromise = initializeApp();
+
+// Also export the app directly for compatibility
+// Note: In Vercel, use appPromise to ensure routes are registered before handling requests
 export default app;
 
