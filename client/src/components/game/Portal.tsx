@@ -25,6 +25,25 @@ import greyVideo from "@/assets/videos/grey-portal.mp4";
 
 const fallbackVideos = [arcturianVideo, mantisVideo, greyVideo];
 
+const speciesVideoMap: Record<string, string> = {
+  insectoid: mantisVideo,
+  reptilian: greyVideo,
+  humanoid: arcturianVideo,
+  energy: arcturianVideo,
+  mechanical: greyVideo,
+  aquatic: greyVideo,
+  cosmic: arcturianVideo,
+  fungoid: mantisVideo,
+  ethereal: arcturianVideo,
+};
+
+const getVideoForSpecies = (speciesType?: string): string => {
+  if (speciesType && speciesVideoMap[speciesType]) {
+    return speciesVideoMap[speciesType];
+  }
+  return fallbackVideos[Math.floor(Math.random() * fallbackVideos.length)];
+};
+
 interface PortalProps {
   gameId?: string;
   onEncounterResult?: (result: ResolveChoiceResponse) => void;
@@ -87,6 +106,8 @@ export function Portal({ gameId, onEncounterResult, onLegacyResult }: PortalProp
       let videoPrompt = "";
       let alienName = "";
 
+      let speciesType: string | undefined;
+      
       // Try procedural generator first (infinite encounters)
       try {
         const procEnc = await getProceduralEncounter();
@@ -95,6 +116,7 @@ export function Portal({ gameId, onEncounterResult, onLegacyResult }: PortalProp
         setLegacyEncounter(null);
         setEncounterMode("procedural");
         alienName = procEnc.alienName;
+        speciesType = procEnc.speciesType;
         videoPrompt = `${alienName} alien emerging from portal in ${procEnc.biome} biome`;
       } catch (e) {
         // Fallback to template system
@@ -127,11 +149,11 @@ export function Portal({ gameId, onEncounterResult, onLegacyResult }: PortalProp
         if (videoResult.videoUrl && !videoResult.fallback) {
           setCurrentVideo(videoResult.videoUrl);
         } else {
-          setCurrentVideo(fallbackVideos[Math.floor(Math.random() * fallbackVideos.length)]);
+          setCurrentVideo(getVideoForSpecies(speciesType));
         }
         setIsGeneratingVideo(false);
       } else {
-        setCurrentVideo(fallbackVideos[Math.floor(Math.random() * fallbackVideos.length)]);
+        setCurrentVideo(getVideoForSpecies(speciesType));
       }
       
       setIsOpen(true);

@@ -54,6 +54,7 @@ export interface GeneratedEncounter {
   id: string;
   alienId: string;
   alienName: string;
+  speciesType: string;
   tier: number;
   biome: Biome;
   attackVector: AttackVector;
@@ -553,6 +554,7 @@ export function generateEncounter(config: Partial<GeneratorConfig> = {}): Genera
     id,
     alienId: alien.id,
     alienName: alien.name,
+    speciesType: alien.speciesType,
     tier,
     biome,
     attackVector: vector,

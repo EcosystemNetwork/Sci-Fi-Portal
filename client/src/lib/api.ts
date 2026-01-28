@@ -250,6 +250,7 @@ export interface ProceduralEncounter {
   id: string;
   alienId: string;
   alienName: string;
+  speciesType: string;
   tier: number;
   biome: string;
   attackVector: string;
