@@ -110,10 +110,10 @@ async function initializeApp() {
   return app;
 }
 
-// Export the initialization promise for Vercel
+// Export the initialization promise for Vercel serverless functions
 export const appPromise = initializeApp();
 
-// For non-Vercel environments, execute the initialization
-// The app is exported for Vercel serverless functions
+// Also export the app directly for compatibility
+// Note: In Vercel, use appPromise to ensure routes are registered before handling requests
 export default app;
 
