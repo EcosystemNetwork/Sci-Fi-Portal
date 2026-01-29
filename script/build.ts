@@ -1,6 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, writeFile, mkdir } from "fs/promises";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -62,9 +62,32 @@ async function buildAll() {
       js: 'import { createRequire } from "module"; const require = createRequire(import.meta.url);',
     },
   });
+
+  // Build a standalone API bundle for Vercel serverless
+  console.log("building Vercel API bundle...");
+  await mkdir("api", { recursive: true });
+
+  await esbuild({
+    entryPoints: ["server/index.ts"],
+    platform: "node",
+    bundle: true,
+    format: "esm",
+    outfile: "api/index.mjs",
+    define: {
+      "process.env.NODE_ENV": '"production"',
+      "process.env.VERCEL": '"1"',
+    },
+    minify: true,
+    external: externals,
+    logLevel: "info",
+    banner: {
+      js: 'import { createRequire } from "module"; const require = createRequire(import.meta.url);',
+    },
+  });
 }
 
 buildAll().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+

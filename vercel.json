@@ -2,12 +2,6 @@
     "version": 2,
     "buildCommand": "npm run build",
     "outputDirectory": "dist/public",
-    "functions": {
-        "api/index.mjs": {
-            "includeFiles": "dist/**"
-        },
-        "api/test.js": {}
-    },
     "rewrites": [
         {
             "source": "/api/test",
