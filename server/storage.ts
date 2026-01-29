@@ -36,6 +36,16 @@ import type {
 // Determine database type
 const usePostgres = process.env.DATABASE_URL?.startsWith("postgres");
 
+// On Vercel (serverless), SQLite cannot be used because the filesystem is read-only
+// Throw a clear error if DATABASE_URL is not configured
+if (process.env.VERCEL && !usePostgres) {
+  throw new Error(
+    "DATABASE_URL environment variable is required for Vercel deployment. " +
+    "Please add a PostgreSQL connection string (e.g., from Neon or Supabase) " +
+    "in your Vercel project settings."
+  );
+}
+
 // Database instance and schema tables - will be initialized based on environment
 let db: any;
 let gameSessions: any;
@@ -55,7 +65,7 @@ if (usePostgres) {
   const { drizzle } = await import("drizzle-orm/node-postgres");
   const pg = await import("pg");
   const schema = await import("@shared/schema");
-  
+
   // Use Pool instead of Client for better connection lifecycle management
   // Pool handles connection retries and is more suitable for serverless environments
   const pool = new pg.default.Pool({
@@ -64,14 +74,14 @@ if (usePostgres) {
     idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
     connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection cannot be established
   });
-  
+
   // Handle pool errors to prevent unhandled rejections
   pool.on('error', (err) => {
     console.error('Unexpected PostgreSQL pool error:', err);
   });
-  
+
   db = drizzle(pool);
-  
+
   // Use PostgreSQL schema tables
   gameSessions = schema.gameSessions;
   encounters = schema.encounters;
@@ -84,7 +94,7 @@ if (usePostgres) {
   skills = schema.skills;
   playerSkills = schema.playerSkills;
   alienRelationships = schema.alienRelationships;
-  
+
   console.log("📊 PostgreSQL pool initialized");
 } else {
   // SQLite mode for local development
@@ -93,23 +103,23 @@ if (usePostgres) {
   const fs = await import("fs");
   const path = await import("path");
   const schema = await import("@shared/schema-sqlite");
-  
+
   const dbPath = process.env.DATABASE_PATH || "./data/game.db";
-  
+
   // Ensure directory exists
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  
+
   const sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
-  
+
   // Initialize SQLite tables
   initializeSQLiteTables(sqlite);
-  
+
   db = drizzle(sqlite);
-  
+
   // Use SQLite schema tables
   gameSessions = schema.gameSessions;
   encounters = schema.encounters;
@@ -122,7 +132,7 @@ if (usePostgres) {
   skills = schema.skills;
   playerSkills = schema.playerSkills;
   alienRelationships = schema.alienRelationships;
-  
+
   console.log(`📊 Connected to SQLite database at ${dbPath}`);
 }
 
@@ -524,7 +534,7 @@ export class DbStorage implements IStorage {
   async addToInventory(gameId: string, itemId: string, quantity: number = 1): Promise<PlayerInventory> {
     const existing = await db.select().from(playerInventory)
       .where(and(eq(playerInventory.gameId, gameId), eq(playerInventory.itemId, itemId)));
-    
+
     if (existing.length > 0) {
       const [updated] = await db.update(playerInventory)
         .set({ quantity: existing[0].quantity + quantity })
@@ -542,7 +552,7 @@ export class DbStorage implements IStorage {
   async removeFromInventory(gameId: string, itemId: string, quantity: number = 1): Promise<void> {
     const existing = await db.select().from(playerInventory)
       .where(and(eq(playerInventory.gameId, gameId), eq(playerInventory.itemId, itemId)));
-    
+
     if (existing.length > 0) {
       if (existing[0].quantity <= quantity) {
         await db.delete(playerInventory).where(eq(playerInventory.id, existing[0].id));
@@ -557,7 +567,7 @@ export class DbStorage implements IStorage {
   async getInventory(gameId: string): Promise<(PlayerInventory & { item: Item })[]> {
     const inventory = await db.select().from(playerInventory)
       .where(eq(playerInventory.gameId, gameId));
-    
+
     const result: (PlayerInventory & { item: Item })[] = [];
     for (const inv of inventory) {
       const item = await this.getItemById(inv.itemId);
@@ -571,7 +581,7 @@ export class DbStorage implements IStorage {
   async equipItem(gameId: string, itemId: string): Promise<void> {
     const inventory = await db.select().from(playerInventory)
       .where(and(eq(playerInventory.gameId, gameId), eq(playerInventory.itemId, itemId)));
-    
+
     if (inventory.length > 0) {
       const item = await this.getItemById(itemId);
       if (item && item.slot !== 'consumable' && item.slot !== 'module') {
@@ -581,7 +591,7 @@ export class DbStorage implements IStorage {
             eq(playerInventory.gameId, gameId),
             eq(playerInventory.equipped, true)
           ));
-        
+
         const equippedOfSlot = await this.getEquippedItems(gameId);
         for (const equipped of equippedOfSlot) {
           if (equipped.item.slot === item.slot) {
@@ -591,7 +601,7 @@ export class DbStorage implements IStorage {
           }
         }
       }
-      
+
       await db.update(playerInventory)
         .set({ equipped: true })
         .where(eq(playerInventory.id, inventory[0].id));
@@ -607,7 +617,7 @@ export class DbStorage implements IStorage {
   async getEquippedItems(gameId: string): Promise<(PlayerInventory & { item: Item })[]> {
     const equipped = await db.select().from(playerInventory)
       .where(and(eq(playerInventory.gameId, gameId), eq(playerInventory.equipped, true)));
-    
+
     const result: (PlayerInventory & { item: Item })[] = [];
     for (const inv of equipped) {
       const item = await this.getItemById(inv.itemId);
@@ -657,7 +667,7 @@ export class DbStorage implements IStorage {
   async upgradeSkill(gameId: string, skillId: string): Promise<PlayerSkill | undefined> {
     const existing = await db.select().from(playerSkills)
       .where(and(eq(playerSkills.gameId, gameId), eq(playerSkills.skillId, skillId)));
-    
+
     if (existing.length > 0) {
       const skill = await this.getSkillById(skillId);
       if (skill && existing[0].rank < skill.maxRank) {
@@ -674,7 +684,7 @@ export class DbStorage implements IStorage {
   async getPlayerSkills(gameId: string): Promise<(PlayerSkill & { skill: Skill })[]> {
     const playerSkillsList = await db.select().from(playerSkills)
       .where(eq(playerSkills.gameId, gameId));
-    
+
     const result: (PlayerSkill & { skill: Skill })[] = [];
     for (const ps of playerSkillsList) {
       const skill = await this.getSkillById(ps.skillId);
@@ -705,7 +715,7 @@ export class DbStorage implements IStorage {
 
   async updateRelationship(gameId: string, faction: string, standingChange: number): Promise<AlienRelationship> {
     let relationship = await this.getRelationship(gameId, faction);
-    
+
     if (!relationship) {
       const [newRel] = await db.insert(alienRelationships)
         .values({ gameId, faction, standing: 0, title: "Unknown", encounterCount: 0 })
@@ -715,17 +725,17 @@ export class DbStorage implements IStorage {
 
     const newStanding = Math.max(-100, Math.min(100, relationship!.standing + standingChange));
     const title = this.getRelationshipTitle(newStanding);
-    
+
     const [updated] = await db.update(alienRelationships)
-      .set({ 
-        standing: newStanding, 
+      .set({
+        standing: newStanding,
         title,
         encounterCount: relationship!.encounterCount + 1,
         lastEncounter: new Date()
       })
       .where(eq(alienRelationships.id, relationship!.id))
       .returning();
-    
+
     return updated;
   }
 
@@ -740,9 +750,9 @@ export class DbStorage implements IStorage {
   }
 
   async initializeRelationships(gameId: string): Promise<void> {
-    const factions = ["council", "hive", "syndicate", "collective", "empire", 
-                      "federation", "alliance", "nomads", "ancients", "void"];
-    
+    const factions = ["council", "hive", "syndicate", "collective", "empire",
+      "federation", "alliance", "nomads", "ancients", "void"];
+
     for (const faction of factions) {
       const existing = await this.getRelationship(gameId, faction);
       if (!existing) {
